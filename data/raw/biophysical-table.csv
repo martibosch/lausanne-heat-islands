@@ -1,0 +1,27 @@
+lulc_code,description,crop_factor,albedo_min,albedo_max,green_area
+0,"building",0.75,0.1,0.25,0
+1,"road, path",0.75,0.15,0.15,0
+2,sidewalk,0.75,0.15,0.15,0
+3,traffic island,0.75,0.15,0.15,0
+4,rail,0.75,0.15,0.15,0
+5,airfield,0.75,0.2,0.2,0
+6,pond,0.75,0.15,0.15,0
+7,other impervious,0.75,0.15,0.15,0
+8,"field, meadow, pasture",0.75,0.2,0.2,1
+9,vineyards,0.73,0.2,0.2,1
+10,other intensive farming,0.73,0.2,0.2,1
+11,garden,0.73,0.2,0.2,1
+12,wetland,0.68,0.1,0.1,1
+13,other green,0.8,0.2,0.2,1
+14,backwater,0.73,0.05,0.05,1
+15,water course,1.0,0.05,0.05,0
+16,reed,1.0,0.1,0.1,1
+17,dense forest,1.0,0.15,0.15,1
+18,densely wooded pasture,1.0,0.15,0.15,1
+19,open wooded pasture,0.68,0.2,0.2,1
+20,other wooded,0.68,0.15,0.15,0
+21,bare rocks,0.68,0.25,0.25,0
+22,glacier,0.68,0.1,0.1,0
+23,sand,0.75,0.25,0.25,0
+24,gravel pit,0.75,0.25,0.25,0
+25,other non-vegetated,0.75,0.15,0.15,0

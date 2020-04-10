@@ -1,0 +1,39 @@
+name: invest-heat-islands
+channels:
+  - conda-forge
+dependencies:
+  - pip
+  - pip:
+    - -e .
+    - flake8-isort==2.7.0
+    - natcap.invest==3.8.0
+    - git+git://github.com/woodcrafty/PyETo.git@0b7ac9f149f4c89c5b5759a875010c521aa07f0f
+    - pylandsat==0.2
+    - rio-toa==0.3.0
+    - salem==0.2.4
+  - setuptools
+  - wheel
+  - click
+  - sphinx
+  - coverage
+  - flake8
+  - awscli  
+  - python-dotenv>=0.5.1
+  - python=3.7
+  - ipykernel
+  - boto3
+  - tqdm
+  - numpy<1.17  # because of laspy
+  - gdal<3.0
+  - geopandas<0.7  # because of salem
+  - rasterio
+  - xlrd
+  - xarray
+  - netcdf4
+  - scikit-learn=0.22.1  # better algorithm default args
+  - descartes
+  - contextily
+  - seaborn
+  - s3fs  
+  - fsspec
+  - dask
