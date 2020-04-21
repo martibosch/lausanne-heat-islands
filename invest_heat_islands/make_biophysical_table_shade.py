@@ -2,6 +2,7 @@ import logging
 
 import click
 import numpy as np
+import pandas as pd
 import rasterio as rio
 from rasterio import transform, windows
 
@@ -11,36 +12,37 @@ from invest_heat_islands import settings
 @click.command()
 @click.argument('agglom_lulc_filepath', type=click.Path(exists=True))
 @click.argument('tree_canopy_filepath', type=click.Path(exists=True))
+@click.argument('biophysical_table_filepath', type=click.Path(exists=True))
 @click.argument('dst_filepath', type=click.Path())
-@click.option('--dst-dtype', default=None, required=False)
-def main(agglom_lulc_filepath, tree_canopy_filepath, dst_filepath, dst_dtype):
+def main(agglom_lulc_filepath, tree_canopy_filepath,
+         biophysical_table_filepath, dst_filepath):
     logger = logging.getLogger(__name__)
 
+    # 1. compute the per-pixel tree cover
     # read the agglomeration extract raster
     with rio.open(agglom_lulc_filepath) as src:
         lulc_arr = src.read(1)
         res = src.res
-        shape = src.shape
-        t = src.transform
         nodata = src.nodata
-        meta = src.meta
 
+    # TODO: the `get_pixel_tree_cover` approach should be done more efficiently
+    # as a (fully-vectorized) resampling operation
     # get a list of (x,y) pixel coordinates
     lulc_flat_arr = lulc_arr.flatten()
     cond = lulc_flat_arr != nodata
-    ii, jj = np.meshgrid(np.arange(shape[0]),
-                         np.arange(shape[1]),
+    ii, jj = np.meshgrid(np.arange(src.shape[0]),
+                         np.arange(src.shape[1]),
                          indexing='ij')
     xys = np.array([
-        transform.xy(t, i, j) for i, j in zip(ii.flatten()[cond],
-                                              jj.flatten()[cond])
+        transform.xy(src.transform, i, j)
+        for i, j in zip(ii.flatten()[cond],
+                        jj.flatten()[cond])
     ])
     logger.info("computed flat list of %d (x, y) pixel coordinates of %s",
                 len(xys), agglom_lulc_filepath)
 
     # get the percentage of tree cover of each pixel
     # get_pixel_tree_cover(xy, src, x_inc, y_inc)
-
     x_inc, y_inc = res[0] / 2, res[1] / 2
     with rio.open(tree_canopy_filepath) as src:
 
@@ -61,22 +63,27 @@ def main(agglom_lulc_filepath, tree_canopy_filepath, dst_filepath, dst_dtype):
     logger.info("extracted per-pixel proportion of tree cover from %s",
                 tree_canopy_filepath)
 
-    if dst_dtype is None:
-        dst_dtype = tree_cover_flat_arr.dtype
-
     # use `nodata` (instead of `zeros_like`) because it allows distinguishing
     # actual zeros from nodata
     # tree_cover_arr = np.zeros_like(lulc_arr, dtype=tree_cover_flat_arr.dtype)
-    tree_cover_arr = np.full_like(lulc_arr, nodata, dtype=dst_dtype)
+    tree_cover_arr = np.full_like(lulc_arr,
+                                  nodata,
+                                  dtype=tree_cover_flat_arr.dtype)
     # use `ravel` instead of `flatten` because the former returns a view that
     # can be modified in-place (while the latter returns a copy)
     tree_cover_arr.ravel()[cond] = tree_cover_flat_arr
 
-    # dump the tree cover raster
-    meta.update(dtype=dst_dtype)
-    with rio.open(dst_filepath, 'w', **meta) as dst:
-        dst.write(tree_cover_arr, 1)
-    logger.info("dumped raster of per-pixel proportion of tree cover to %s",
+    # 2. compute the average shade coefficient for each of its LULC classes
+    shade_dict = {}
+    for class_val in np.unique(lulc_arr[lulc_arr != nodata]):
+        shade_dict[class_val] = tree_cover_arr[lulc_arr == class_val].mean()
+    # now add the shade coefficient to the biophysical table
+    biophysical_df = pd.read_csv(biophysical_table_filepath)
+    biophysical_df['shade'] = biophysical_df['lucode'].apply(
+        lambda lulc_code: shade_dict.get(lulc_code, 0))
+    # dump it
+    biophysical_df.to_csv(dst_filepath)
+    logger.info("dumped biophysical table with shade coefficients to %s",
                 dst_filepath)
 
 

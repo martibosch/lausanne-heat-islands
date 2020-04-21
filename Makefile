@@ -1,5 +1,5 @@
-.PHONY: tree_cover station_measurements landsat_features regression_df \
-	regressor tair_pred
+.PHONY: biophysical_table_shade station_measurements landsat_features \
+	regression_df regressor tair_pred
 
 
 #################################################################################
@@ -47,11 +47,10 @@ UTILS_PY := $(CODE_DIR)/utils.py
 
 
 #################################################################################
-# LULC MODULE
+# LULC
 
-CODE_LULC_DIR := $(CODE_DIR)/lulc
-
-## Get the pixel tree cover map of the 10m resolution LULC
+## Download the agglom. extent, LULC, tree canopy and compute the shade column of
+## the biophysical table
 ### variables
 AGGLOM_EXTENT_DIR := $(DATA_RAW_DIR)/agglom-extent
 AGGLOM_EXTENT_FILE_KEY = urban-footprinter/lausanne-agglom/agglom-extent.zip
@@ -60,9 +59,10 @@ AGGLOM_LULC_FILE_KEY = urban-footprinter/lausanne-agglom/agglom-lulc.tif
 AGGLOM_LULC_TIF := $(DATA_RAW_DIR)/agglom-lulc.tif
 TREE_CANOPY_FILE_KEY = detectree/lausanne-agglom/tree-canopy.tif
 TREE_CANOPY_TIF := $(DATA_RAW_DIR)/tree-canopy.tif
-TREE_COVER_TIF := $(DATA_INTERIM_DIR)/tree-cover.tif
+BIOPHYSICAL_TABLE_CSV := $(DATA_RAW_DIR)/biophysical-table.csv
+BIOPHYSICAL_TABLE_SHADE_CSV := $(DATA_INTERIM_DIR)/biophysical-table-shade.csv
 #### code
-MAKE_PIXEL_TREE_COVER_PY := $(CODE_LULC_DIR)/make_pixel_tree_cover.py
+MAKE_BIOPHYSICAL_TABLE_SHADE_PY := $(CODE_DIR)/make_biophysical_table_shade.py
 
 ### rules
 $(AGGLOM_EXTENT_DIR): | $(DATA_RAW_DIR)
@@ -76,11 +76,11 @@ $(AGGLOM_LULC_TIF): | $(DATA_RAW_DIR)
 	python $(DOWNLOAD_S3_PY) $(AGGLOM_LULC_FILE_KEY) $@
 $(TREE_CANOPY_TIF): | $(DATA_RAW_DIR)
 	python $(DOWNLOAD_S3_PY) $(TREE_CANOPY_FILE_KEY) $@
-$(TREE_COVER_TIF): $(AGGLOM_LULC_TIF) $(TREE_CANOPY_TIF) \
-	$(MAKE_PIXEL_TREE_COVER_PY)
-	python $(MAKE_PIXEL_TREE_COVER_PY) $(AGGLOM_LULC_TIF) \
-		$(TREE_CANOPY_TIF) $@
-tree_cover: $(TREE_COVER_TIF)
+$(BIOPHYSICAL_TABLE_SHADE_CSV): $(AGGLOM_LULC_TIF) $(TREE_CANOPY_TIF) \
+	$(BIOPHYSICAL_TABLE_CSV) $(MAKE_BIOPHYSICAL_TABLE_SHADE_PY)
+	python $(MAKE_BIOPHYSICAL_TABLE_SHADE_PY) $(AGGLOM_LULC_TIF) \
+		$(TREE_CANOPY_TIF) $(BIOPHYSICAL_TABLE_CSV) $@
+biophysical_table_shade: $(BIOPHYSICAL_TABLE_SHADE_CSV)
 
 
 #################################################################################
@@ -200,6 +200,56 @@ $(TAIR_PRED_NC): $(AGGLOM_EXTENT_SHP) $(STATION_TAIR_CSV) \
 	python $(MAKE_TAIR_PRED_PY) $(AGGLOM_EXTENT_SHP) $(STATION_TAIR_CSV) \
 		$(LANDSAT_FEATURES_NC) $(SWISS_DEM_TIF) $(REGRESSOR_JOBLIB) $@
 tair_pred: $(TAIR_PRED_NC)
+
+
+#################################################################################
+# InVEST urban cooling model
+
+CODE_INVEST_DIR := $(CODE_DIR)/invest
+
+## 0. Some code that we need for all the experiments
+### variables
+DATA_INVEST_DIR := $(DATA_INTERIM_DIR)/invest
+REF_ET_NC := $(DATA_INVEST_DIR)/ref-et.nc
+#### code
+MAKE_REF_ET_PY := $(CODE_INVEST_DIR)/make_ref_et.py
+# MAKE_CALIBRATE_STATIONS_PY := $(CODE_INVEST_DIR)/make_calibrate_stations.py
+
+### rules
+$(DATA_INVEST_DIR): | $(DATA_INTERIM_DIR)
+	mkdir $@
+$(REF_ET_NC): $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) $(STATION_TAIR_CSV) \
+	$(MAKE_REF_ET_PY) | $(DATA_INVEST_DIR)
+	python $(MAKE_REF_ET_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
+		$(STATION_TAIR_CSV) $@
+ref_et: $(REF_ET_NC)
+
+## 1. Calibrate the model
+### variables
+STATION_CALIBRATION_LOG_JSON := $(DATA_INVEST_DIR)/station-calibration-log.json
+MAP_CALIBRATION_LOG_JSON := $(DATA_INVEST_DIR)/map-calibration-log.json
+#### code
+MAKE_CALIBRATE_PY := $(CODE_INVEST_DIR)/make_calibrate.py
+
+### rules
+#### we do not list `$(AGGLOM_EXTENT_SHP)` as requirement because we are not
+#### actually using it, just passing it because the InVEST urban cooling model
+#### requires a shapefile for the area of interest
+$(STATION_CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_CSV) \
+	$(REF_ET_NC) $(STATION_LOCATIONS_CSV) $(STATION_TAIR_CSV) \
+	$(MAKE_CALIBRATE_PY)
+	python $(MAKE_CALIBRATE_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
+		$(BIOPHYSICAL_TABLE_CSV) $(REF_ET_NC) $@ \
+		--station-locations-filepath $(STATION_LOCATIONS_CSV) \
+		--station-tair-filepath $(STATION_TAIR_CSV)
+calibrate_station: $(STATION_CALIBRATION_LOG_JSON)
+
+$(MAP_CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_CSV) \
+	$(REF_ET_NC) $(TAIR_PRED_NC) $(MAKE_CALIBRATE_PY)
+	python $(MAKE_CALIBRATE_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
+		$(BIOPHYSICAL_TABLE_CSV) $(REF_ET_NC) $@ \
+		--tair-pred-filepath $(TAIR_PRED_NC) --accept-coeff 3
+calibrate_map: $(STATION_CALIBRATION_LOG_JSON)
 
 
 #################################################################################
