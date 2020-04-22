@@ -8,7 +8,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from invest_heat_islands import settings, utils
+from invest_heat_islands import geo_utils, meteoswiss, settings
+from invest_heat_islands.regression import utils
 
 
 def get_savg_feature_arr(landsat_feature_da, station_tair_df,
@@ -81,9 +82,9 @@ def main(station_locations_filepath, station_tair_filepath,
     # reproject the `station_tair_df`
     station_location_gser = gpd.GeoSeries(gpd.points_from_xy(
         station_location_df['x'], station_location_df['y']),
-                                          crs=utils.CRS)
+                                          crs=geo_utils.CRS)
     station_location_meteoswiss_gser = station_location_gser.to_crs(
-        utils.METEOSWISS_CRS)
+        meteoswiss.METEOSWISS_CRS)
     station_location_landsat_gser = station_location_gser.to_crs(
         landsat_features_ds.attrs['pyproj_srs'])
 
@@ -95,21 +96,15 @@ def main(station_locations_filepath, station_tair_filepath,
     station_tair_df.index = pd.to_datetime(station_tair_df.index)
 
     # prepare remote access to MeteoSwiss grid data
-    fs = utils.get_meteoswiss_fs()
+    fs = meteoswiss.get_meteoswiss_fs()
     bucket_name = environ.get('S3_BUCKET_NAME')
 
     # prepare regression data frame
-    target = 'tair_station'
-    features = ['tair_grid']
-    for base_feature in utils.LANDSAT_BASE_FEATURES:
-        for averaging_radius in utils.AVERAGING_RADII:
-            features.append(f'{base_feature}_{averaging_radius}')
-    features.append('elev')
     regression_df = pd.DataFrame(0,
                                  index=station_tair_df.index,
                                  columns=pd.MultiIndex.from_product(
                                      (station_tair_df.columns,
-                                      [target, *features])))
+                                      utils.REGRESSION_DF_COLUMNS)))
 
     # 1. target
     for column in station_tair_df.columns:
@@ -121,8 +116,8 @@ def main(station_locations_filepath, station_tair_filepath,
     # need to iterate each year separately because MeteoSwiss grid data comes
     # in yearly files
     for year, year_df in station_tair_df.groupby(station_tair_df.index.year):
-        year_ds = utils.open_meteoswiss_s3_ds(fs, bucket_name, year,
-                                              utils.METEOSWISS_GRID_PRODUCT)
+        year_ds = meteoswiss.open_meteoswiss_s3_ds(
+            fs, bucket_name, year, meteoswiss.METEOSWISS_GRID_PRODUCT)
         # key = get_meteoswiss_daily_grid_key(fs_s3,
         #                                     bucket_name,
         #                                     year,
@@ -137,13 +132,14 @@ def main(station_locations_filepath, station_tair_filepath,
         #                         method='nearest').values
 
         # vectorized approach (~25 times faster)
-        year_grid_arr = np.diagonal(year_ds[utils.METEOSWISS_GRID_PRODUCT].sel(
-            time=year_df.index,
-            chx=station_location_meteoswiss_gser.x,
-            chy=station_location_meteoswiss_gser.y,
-            method='nearest'),
-                                    axis1=1,
-                                    axis2=2)
+        year_grid_arr = np.diagonal(
+            year_ds[meteoswiss.METEOSWISS_GRID_PRODUCT].sel(
+                time=year_df.index,
+                chx=station_location_meteoswiss_gser.x,
+                chy=station_location_meteoswiss_gser.y,
+                method='nearest'),
+            axis1=1,
+            axis2=2)
 
         for i, column in enumerate(year_df.columns):
             regression_df.loc[year_df.index,
@@ -173,7 +169,10 @@ def main(station_locations_filepath, station_tair_filepath,
             'elev')] = station_location_df.loc[station_column, 'alt']
 
     # dump it (need to dump the index here)
-    regression_df.stack(level=0).dropna().to_csv(dst_filepath)
+    # use the `[utils.REGRESSION_DF_COLUMNS]` to ensure a consistent column
+    # ordering after `stack`
+    regression_df.stack(
+        level=0)[utils.REGRESSION_DF_COLUMNS].dropna().to_csv(dst_filepath)
     logger.info("dumped air temperature regression data frame to %s",
                 dst_filepath)
 

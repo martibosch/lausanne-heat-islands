@@ -11,7 +11,8 @@ import xarray as xr
 from rasterio import features, transform
 from scipy import ndimage as ndi
 
-from invest_heat_islands import settings, utils
+from invest_heat_islands import geo_utils, meteoswiss, settings
+from invest_heat_islands.regression import utils
 
 
 def get_savg_feature_ds(day_da, kernel_dict):
@@ -27,16 +28,6 @@ def get_savg_feature_ds(day_da, kernel_dict):
         ds[f'{name}_{averaging_radius}'] = xr.apply_ufunc(
             lambda da: ndi.convolve(da, kernel_arr) / kernel_arr.sum(), day_da)
     return ds
-
-
-def salem_da_from_singleband(raster_filepath, name=None):
-    if name is None:
-        name = ''  # salem needs a ds/da name (even empty)
-    raster_da = xr.open_rasterio(raster_filepath).isel(band=0)
-    raster_da.name = name
-    raster_da.attrs['pyproj_srs'] = raster_da.crs
-
-    return raster_da
 
 
 @click.command()
@@ -100,20 +91,20 @@ def main(agglom_extent_filepath, station_tair_filepath,
     feature_columns = []
     # 1.1 meteoswiss grid data temperature
     # prepare remote access to MeteoSwiss grid data
-    fs = utils.get_meteoswiss_fs()
+    fs = meteoswiss.get_meteoswiss_fs()
     bucket_name = environ.get('S3_BUCKET_NAME')
     # get the grid temperature map
     T_grid_da = xr.concat([
         xr.DataArray(
-            utils.open_meteoswiss_s3_ds(
+            meteoswiss.open_meteoswiss_s3_ds(
                 fs,
                 bucket_name,
                 year,
-                utils.METEOSWISS_GRID_PRODUCT,
+                meteoswiss.METEOSWISS_GRID_PRODUCT,
                 geometry=ref_geom,
                 crs=crs,
                 roi_kws={'all_touched': True},
-            )[utils.METEOSWISS_GRID_PRODUCT]).sel(time=year_ser.index)
+            )[meteoswiss.METEOSWISS_GRID_PRODUCT]).sel(time=year_ser.index)
         for year, year_ser in date_ser.groupby(date_ser.index.year)
     ],
                           dim='time')
@@ -143,7 +134,7 @@ def main(agglom_extent_filepath, station_tair_filepath,
     # 1.4 Elevation
     # dem_s3_filepath = path.join(bucket_name, dem_file_key)
     # with fs_s3.open(dem_s3_filepath) as dem_file_obj:
-    dem_da = salem_da_from_singleband(swiss_dem_filepath)
+    dem_da = geo_utils.salem_da_from_singleband(swiss_dem_filepath)
     # align it
     dem_da = ref_da.salem.transform(dem_da, interp='linear')
     dem_flat_arr = dem_da.values.flatten()

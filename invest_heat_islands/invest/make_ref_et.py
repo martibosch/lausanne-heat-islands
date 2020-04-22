@@ -8,7 +8,7 @@ import pandas as pd
 import pyeto
 import xarray as xr
 
-from invest_heat_islands import settings, utils
+from invest_heat_islands import geo_utils, meteoswiss, settings
 
 # 46.519833 degrees in radians
 LAUSANNE_LAT = 0.811924
@@ -53,13 +53,13 @@ def main(agglom_lulc_filepath, agglom_extent_filepath, station_tair_filepath,
     station_tair_df.index = pd.to_datetime(station_tair_df.index)
 
     # prepare remote access to MeteoSwiss grid data
-    fs = utils.get_meteoswiss_fs()
+    fs = meteoswiss.get_meteoswiss_fs()
     bucket_name = environ.get('S3_BUCKET_NAME')
 
     # pre-compute the meteo inputs
     T_ds = xr.concat([
         xr.Dataset({
-            meteoswiss_grid_product: utils.open_meteoswiss_s3_ds(
+            meteoswiss_grid_product: meteoswiss.open_meteoswiss_s3_ds(
                 fs,
                 bucket_name,
                 year,
@@ -78,12 +78,13 @@ def main(agglom_lulc_filepath, agglom_extent_filepath, station_tair_filepath,
     ref_eto_da = T_ds.groupby('time').map(compute_ref_eto)
     # select only the meteoswiss product of interest (i.e., TabsD/average
     # temperature)
-    T_da = T_ds[utils.METEOSWISS_GRID_PRODUCT]
+    T_da = T_ds[meteoswiss.METEOSWISS_GRID_PRODUCT]
 
     # align the reference evapotranspiration data-array to the agglom. LULC
     ref_eto_da.name = 'ref_eto'
     ref_eto_da.attrs = T_da.attrs.copy()
-    ref_da = utils.salem_da_from_singleband(agglom_lulc_filepath, name='lulc')
+    ref_da = geo_utils.salem_da_from_singleband(agglom_lulc_filepath,
+                                                name='lulc')
     ref_eto_da = ref_da.salem.transform(ref_eto_da, interp='linear')
 
     # dump it

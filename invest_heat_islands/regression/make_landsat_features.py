@@ -11,7 +11,7 @@ import salem
 import xarray as xr
 from rio_toa import brightness_temp
 
-from invest_heat_islands import settings, utils
+from invest_heat_islands import geo_utils, settings
 
 DATETIME_FMT = '%Y-%m-%d'
 
@@ -119,12 +119,12 @@ def get_landsat_features_ds(landsat_tile,
 
     # crop/align to the reference extent
     if ref_ds is None:
-        landsat_ds = utils.clip_ds_to_extent(landsat_ds,
-                                             geometry=ref_geom,
-                                             crs=crs,
-                                             roi=roi,
-                                             subset_kws=subset_kws,
-                                             roi_kws=roi_kws)
+        landsat_ds = geo_utils.clip_ds_to_extent(landsat_ds,
+                                                 geometry=ref_geom,
+                                                 crs=crs,
+                                                 roi=roi,
+                                                 subset_kws=subset_kws,
+                                                 roi_kws=roi_kws)
     else:
         landsat_ds = ref_ds.salem.transform(landsat_ds, interp='linear')
 

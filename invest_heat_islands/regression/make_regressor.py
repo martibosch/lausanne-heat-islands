@@ -3,7 +3,7 @@ import logging
 import click
 import joblib as jl
 import pandas as pd
-from sklearn import ensemble, metrics
+from sklearn import linear_model, metrics
 
 from invest_heat_islands import settings
 
@@ -19,8 +19,13 @@ def main(regression_df_filepath, dst_filepath, target_column):
 
     y = regression_df[target_column]
     X = regression_df.drop(target_column, axis=1)
-    regr = ensemble.RandomForestRegressor().fit(X, y)
-    logger.info("trained random forest regressor with R^2 %.4f and RMSE %.4f",
+    # regr = ensemble.RandomForestRegressor().fit(X, y)
+    # logger.info(
+    #     "trained random forest regressor with R^2 %.4f and RMSE %.4f",
+    #     regr.score(X, y),
+    #     metrics.mean_squared_error(y, regr.predict(X), squared=False))
+    regr = linear_model.LinearRegression().fit(X, y)
+    logger.info("trained linear regressor with R^2 %.4f and RMSE %.4f",
                 regr.score(X, y),
                 metrics.mean_squared_error(y, regr.predict(X), squared=False))
 
