@@ -34,6 +34,7 @@ dependencies:
   - descartes
   - contextily
   - seaborn
+  - statsmodels
   - s3fs  
   - fsspec
   - dask
