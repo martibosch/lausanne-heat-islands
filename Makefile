@@ -1,5 +1,6 @@
 .PHONY: biophysical_table_shade station_measurements landsat_features \
-	regression_df regressor tair_pred ref_et calibrate_station calibrate_map
+	regression_df regressor tair_regr_maps ref_et calibrate_station \
+	calibrate_map
 
 
 #################################################################################
@@ -175,9 +176,9 @@ DHM200_URI = \
 DHM200_ASC := $(DHM200_DIR)/DHM200.asc
 SWISS_DEM_TIF := $(DATA_INTERIM_DIR)/swiss-dem.tif
 #### predicted air temperature data array
-TAIR_PRED_NC := $(DATA_INTERIM_DIR)/tair-pred.nc
+TAIR_REGR_MAPS_NC := $(DATA_PROCESSED_DIR)/tair-regr-maps.nc
 #### code
-MAKE_TAIR_PRED_PY := $(CODE_REGRESSION_DIR)/make_tair_pred.py
+MAKE_TAIR_REGR_MAPS_PY := $(CODE_REGRESSION_DIR)/make_tair_regr_maps.py
 
 ### rules
 $(DHM200_DIR): | $(DATA_RAW_DIR)
@@ -194,12 +195,13 @@ $(SWISS_DEM_TIF): $(DHM200_ASC)
 	gdal_translate -of GTiff $(TEMP_VRT) $@
 	rm $(TEMP_VRT)
 
-$(TAIR_PRED_NC): $(AGGLOM_EXTENT_SHP) $(STATION_TAIR_CSV) \
+$(TAIR_REGR_MAPS_NC): $(AGGLOM_EXTENT_SHP) $(STATION_TAIR_CSV) \
 	$(LANDSAT_FEATURES_NC) $(SWISS_DEM_TIF) $(REGRESSOR_JOBLIB) \
-	$(MAKE_TAIR_PRED_PY)
-	python $(MAKE_TAIR_PRED_PY) $(AGGLOM_EXTENT_SHP) $(STATION_TAIR_CSV) \
-		$(LANDSAT_FEATURES_NC) $(SWISS_DEM_TIF) $(REGRESSOR_JOBLIB) $@
-tair_pred: $(TAIR_PRED_NC)
+	$(MAKE_TAIR_REGR_MAPS_PY) | $(DATA_PROCESSED_DIR)
+	python $(MAKE_TAIR_REGR_MAPS_PY) $(AGGLOM_EXTENT_SHP) \
+		$(STATION_TAIR_CSV) $(LANDSAT_FEATURES_NC) $(SWISS_DEM_TIF) \
+		$(REGRESSOR_JOBLIB) $@
+tair_regr_maps: $(TAIR_REGR_MAPS_NC)
 
 
 #################################################################################
