@@ -172,6 +172,10 @@ class ModelWrapper:
         # evapotranspiration rasters for each date
         self.ref_et_filepath_dict = ref_et_filepath_dict
 
+        # useful to predict air temperature rasters
+        with rio.open(lulc_raster_filepath) as src:
+            self.meta = src.meta.copy()
+
         # with open(calibration_log_filepath) as src:
         #     self.base_args.update(**json.load(src)['params'])
 
@@ -245,13 +249,35 @@ class ModelWrapper:
                                     'T_air.tif')) as src:
                 return src.read(1, **read_kws)
 
-    def predict_T_rasters(self, dates=None, read_kws=None):
+    @property
+    def grid_x(self):
+        try:
+            return self._grid_x
+        except AttributeError:
+            cols = np.arange(self.meta['width'])
+            x, _ = transform.xy(self.meta['transform'], cols, cols)
+            self._grid_x = x
+            return self._grid_x
+
+    @property
+    def grid_y(self):
+        try:
+            return self._grid_y
+        except AttributeError:
+            rows = np.arange(self.meta['height'])
+            _, y = transform.xy(self.meta['transform'], rows, rows)
+            self._grid_y = y
+            return self._grid_y
+
+    def predict_T_da(self, dates=None, read_kws=None):
         if dates is None:
             # just so that we can iterate over the dictionary keys (dates)
             dates = list(self.ref_et_filepath_dict.keys())
 
         if len(dates) == 1:
-            return self._predict_T_raster(dates[0], self.base_args, read_kws)
+            T_rasters = [
+                self._predict_T_raster(dates[0], self.base_args, read_kws)
+            ]
         else:
             pred_delayed = [
                 dask.delayed(self._predict_T_raster)(date, self.base_args,
@@ -259,9 +285,18 @@ class ModelWrapper:
                 for date in dates
             ]
 
-            return dask.compute(*pred_delayed,
-                                scheduler='processes',
-                                num_workers=self.num_workers)
+            T_rasters = list(
+                dask.compute(*pred_delayed,
+                             scheduler='processes',
+                             num_workers=self.num_workers))
+        return xr.DataArray(T_rasters,
+                            dims=('time', 'y', 'x'),
+                            coords={
+                                'time': dates,
+                                'y': self.grid_y,
+                                'x': self.grid_x
+                            },
+                            attrs={'pyproj_srs': self.meta['crs']})
 
     def _predict_T_station(self, date, model_args=None):
         return self._predict_T_raster(date, model_args,
