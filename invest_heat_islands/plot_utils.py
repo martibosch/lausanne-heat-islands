@@ -4,20 +4,20 @@ import numpy as np
 import seaborn as sns
 from matplotlib import colors
 from shapely import geometry
+from sklearn import metrics
 
 
-def plot_pred_obs(comparison_df, r_sq=None):
+def plot_pred_obs(comparison_df):
     fig, ax = plt.subplots()
     sns.scatterplot(x='obs', y='pred', data=comparison_df, ax=ax)
     text_kws = dict(transform=ax.transAxes)
-    # we could also use `np.sqrt(np.mean(comparison_df['err']**2))`
-    rmse = np.sqrt(np.mean((comparison_df['pred'] - comparison_df['obs'])**2))
-    if r_sq is None:
-        rmse_y = 0.85
-    else:
-        rmse_y = 0.75
-        ax.text(0.08, 0.85, f'$R^2 = {r_sq:.4}$', **text_kws)
-    ax.text(0.08, rmse_y, f'$RMSE = {rmse:.4} \degree C$', **text_kws)
+    obs_ser, pred_ser = comparison_df['obs'], comparison_df['pred']
+    r_sq = metrics.r2_score(obs_ser, pred_ser)
+    mae = metrics.mean_absolute_error(obs_ser, pred_ser)
+    rmse = metrics.mean_squared_error(obs_ser, pred_ser, squared=False)
+    ax.text(0.06, 0.88, f'$R^2 = {r_sq:.4}$', **text_kws)
+    ax.text(0.06, 0.80, f'$MAE = {mae:.4} \degree C$', **text_kws)
+    ax.text(0.06, 0.72, f'$RMSE = {rmse:.4} \degree C$', **text_kws)
     ax.set_ylabel('$\hat{T}$')
     ax.set_xlabel('$T_{obs}$')
 
@@ -32,6 +32,7 @@ def plot_err_elev_obs(comparison_df):
     # also creating a new data frame (after `rename` avoids reference issues
     df = comparison_df.rename(columns={'date': 'Date'})
     df['Date'] = df['Date'].dt.strftime('%Y-%m-%d')
+    df['err'] = df['pred'] - df['obs']
 
     ax_elev = axes[0]
     sns.scatterplot(x='elev',
@@ -84,10 +85,11 @@ def plot_T_maps(T_da,
 
     if comparison_df is not None:
         err_gdf = gpd.GeoDataFrame(
-            comparison_df[['err', 'date']],
+            comparison_df['date'],
             geometry=list(
                 comparison_df['station'].map(lambda stn: geometry.Point(
                     *station_location_df.loc[stn][['x', 'y']]))))
+        err_gdf['err'] = comparison_df['pred'] - comparison_df['obs']
 
         ceil = int(
             np.ceil(max(abs(err_gdf['err'].max()), abs(err_gdf['err'].min()))))
