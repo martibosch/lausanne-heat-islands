@@ -91,10 +91,9 @@ biophysical_table_shade: $(BIOPHYSICAL_TABLE_SHADE_CSV)
 ### variables
 STATION_RAW_DIR := $(DATA_RAW_DIR)/stations
 LANDSAT_TILES_CSV := $(DATA_RAW_DIR)/landsat-tiles.csv
-STATION_RAW_FILENAMES = station-locations.csv agrometeo-tair-avg.csv \
-	meteoswiss-lausanne-tair-10min.zip meteoswiss-PUY-tair-day.zip \
-	meteoswiss-NABLAU-tair-day.zip WSLLAF.txt \
-	VaudAir_EnvoiTemp20180101-20200128_EPFL_20200129.xlsx
+STATION_RAW_FILENAMES = station-locations.csv agrometeo-tre200s0.csv \
+	meteoswiss-lausanne-tre000s0.zip meteoswiss-lausanne-tre200s0.zip \
+	WSLLAF.txt VaudAir_EnvoiTemp20180101-20200128_EPFL_20200129.xlsx
 STATION_RAW_FILEPATHS := $(addprefix $(STATION_RAW_DIR)/, \
 	$(STATION_RAW_FILENAMES))
 STATION_LOCATIONS_CSV := $(STATION_RAW_DIR)/station-locations.csv
@@ -114,7 +113,7 @@ $(foreach STATION_RAW_FILENAME, $(STATION_RAW_FILENAMES), \
 	$(eval $(DOWNLOAD_STATION_DATA)))
 
 $(STATION_TAIR_CSV): $(LANDSAT_TILES_CSV) $(STATION_RAW_FILEPATHS) \
-	$(MAKE_TAIR_STATION_DF_PY) | $(DATA_INTERIM_DIR)
+	$(MAKE_STATION_TAIR_DF_PY) | $(DATA_INTERIM_DIR)
 	python $(MAKE_STATION_TAIR_DF_PY) $(LANDSAT_TILES_CSV) \
 		$(STATION_RAW_DIR) $@
 station_measurements: $(STATION_TAIR_CSV)
