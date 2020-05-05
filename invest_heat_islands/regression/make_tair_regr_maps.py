@@ -1,8 +1,6 @@
 import logging
-from os import environ
 
 import click
-import dotenv
 import geopandas as gpd
 import joblib as jl
 import numpy as np
@@ -11,7 +9,7 @@ import salem  # noqa: F401
 import xarray as xr
 from scipy import ndimage as ndi
 
-from invest_heat_islands import geo_utils, meteoswiss, settings
+from invest_heat_islands import geo_utils, settings
 from invest_heat_islands.regression import utils
 
 
@@ -30,8 +28,8 @@ def get_savg_feature_ds(day_da, kernel_dict):
     return ds
 
 
-def predict_T(regr, T_grid_arr, landsat_features_ds, dem_arr, T_nodata=np.nan):
-    features = [T_grid_arr.flatten()]
+def predict_T(regr, landsat_features_ds, dem_arr, T_nodata=np.nan):
+    features = []
     for landsat_feature in utils.LANDSAT_FEATURES:
         features.append(landsat_features_ds[landsat_feature].values.flatten())
     features.append(dem_arr.flatten())
@@ -41,7 +39,7 @@ def predict_T(regr, T_grid_arr, landsat_features_ds, dem_arr, T_nodata=np.nan):
     data_idx = ~pd.DataFrame(X).isna().any(axis=1)
     T_pred_arr.ravel()[data_idx] = regr.predict(X[data_idx])
 
-    return T_pred_arr.reshape(T_grid_arr.shape)
+    return T_pred_arr.reshape(dem_arr.shape)
 
 
 @click.command()
@@ -80,30 +78,7 @@ def main(agglom_extent_filepath, station_tair_filepath,
                                          index_col=0).index))
 
     # 1. Prepare the regression features
-    # 1.1 meteoswiss grid data temperature
-    # prepare remote access to MeteoSwiss grid data
-    fs = meteoswiss.get_meteoswiss_fs()
-    bucket_name = environ.get('S3_BUCKET_NAME')
-    # get the grid temperature map
-    T_grid_da = xr.concat([
-        xr.DataArray(
-            meteoswiss.open_meteoswiss_s3_ds(
-                fs,
-                bucket_name,
-                year,
-                meteoswiss.METEOSWISS_GRID_PRODUCT,
-                geometry=ref_geom,
-                crs=crs,
-                roi_kws={'all_touched': True},
-            )[meteoswiss.METEOSWISS_GRID_PRODUCT]).sel(time=year_ser.index)
-        for year, year_ser in date_ser.groupby(date_ser.index.year)
-    ],
-                          dim='time')
-    # align it
-    T_grid_da = ref_da.salem.transform(
-        T_grid_da, interp='linear').salem.subset(geometry=data_geom, crs=crs)
-
-    # 1.2-1.3 Landsat features
+    # 1.1-1.2 Landsat features
     # open the dataset
     landsat_features_ds = xr.open_dataset(landsat_features_filepath)
     # note that we need to forward the dataset attributes to its data variables
@@ -122,30 +97,30 @@ def main(agglom_extent_filepath, station_tair_filepath,
     landsat_features_ds = landsat_features_ds.salem.subset(geometry=data_geom,
                                                            crs=crs)
 
-    # 1.4 Elevation
+    # 1.3 Elevation
     # dem_s3_filepath = path.join(bucket_name, dem_file_key)
     # with fs_s3.open(dem_s3_filepath) as dem_file_obj:
     dem_da = geo_utils.salem_da_from_singleband(swiss_dem_filepath)
     # align it
-    dem_arr = T_grid_da.salem.transform(dem_da, interp='linear').values
+    dem_arr = landsat_features_ds.salem.transform(dem_da,
+                                                  interp='linear').values
 
     # 2. Use the trained regressor to predict the air temperature at the
     #    target resolution
     regr = jl.load(regressor_filepath)
-    T_pred_da = xr.DataArray([
-        predict_T(regr,
-                  T_grid_da.sel(time=date).values,
-                  landsat_features_ds.sel(time=date), dem_arr)
-        for date in date_ser.index
-    ],
-                             dims=('time', 'y', 'x'),
-                             coords={
-                                 'time': date_ser.index,
-                                 'y': T_grid_da.y,
-                                 'x': T_grid_da.x
-                             },
-                             name='T',
-                             attrs=landsat_features_ds.attrs)
+    T_pred_da = xr.DataArray(
+        [
+            predict_T(regr, landsat_features_ds.sel(time=date), dem_arr)
+            for date in date_ser.index
+        ],
+        dims=('time', 'y', 'x'),
+        coords={
+            'time': date_ser.index,
+            'y': landsat_features_ds.y,
+            'x': landsat_features_ds.x
+        },
+        name='T',
+        attrs=landsat_features_ds.attrs)
 
     # 3. Crop the data array to the valid data region and dump it to a file
     T_pred_da.salem.roi(geometry=data_geom, crs=crs).to_netcdf(dst_filepath)
@@ -155,9 +130,5 @@ def main(agglom_extent_filepath, station_tair_filepath,
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format=settings.DEFAULT_LOG_FMT)
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    dotenv.load_dotenv(dotenv.find_dotenv())
 
     main()

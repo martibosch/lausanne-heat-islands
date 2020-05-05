@@ -1,14 +1,12 @@
 import logging
-from os import environ
 
 import click
-import dotenv
 import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
 
-from invest_heat_islands import geo_utils, meteoswiss, settings
+from invest_heat_islands import geo_utils, settings
 from invest_heat_islands.regression import utils
 
 
@@ -83,8 +81,6 @@ def main(station_locations_filepath, station_tair_filepath,
     station_location_gser = gpd.GeoSeries(gpd.points_from_xy(
         station_location_df['x'], station_location_df['y']),
                                           crs=geo_utils.CRS)
-    station_location_meteoswiss_gser = station_location_gser.to_crs(
-        meteoswiss.METEOSWISS_CRS)
     station_location_landsat_gser = station_location_gser.to_crs(
         landsat_features_ds.attrs['pyproj_srs'])
 
@@ -94,10 +90,6 @@ def main(station_locations_filepath, station_tair_filepath,
     station_tair_df = pd.read_csv(station_tair_filepath,
                                   index_col=0)[station_location_df.index]
     station_tair_df.index = pd.to_datetime(station_tair_df.index)
-
-    # prepare remote access to MeteoSwiss grid data
-    fs = meteoswiss.get_meteoswiss_fs()
-    bucket_name = environ.get('S3_BUCKET_NAME')
 
     # prepare regression data frame
     regression_df = pd.DataFrame(0,
@@ -112,40 +104,7 @@ def main(station_locations_filepath, station_tair_filepath,
         regression_df[(column, 'tair_station')] = station_tair_df[column]
 
     # 2. features
-    # 2.1 - meteoswiss grid data temperature
-    # need to iterate each year separately because MeteoSwiss grid data comes
-    # in yearly files
-    for year, year_df in station_tair_df.groupby(station_tair_df.index.year):
-        year_ds = meteoswiss.open_meteoswiss_s3_ds(
-            fs, bucket_name, year, meteoswiss.METEOSWISS_GRID_PRODUCT)
-        # key = get_meteoswiss_daily_grid_key(fs_s3,
-        #                                     bucket_name,
-        #                                     year,
-        #                                     prefix=utils.TAIR_GRID_PREFIX)
-        # with fs_s3.open(key) as file_object:
-        #     ds = xr.open_dataset(file_object)
-
-        # for-loop approach
-        # for date in year_df.index:
-        #     for x, y in zip(station_gser.x, station_gser.y):
-        #         ds['TmaxD'].sel(time=date, chx=x, chy=y,
-        #                         method='nearest').values
-
-        # vectorized approach (~25 times faster)
-        year_grid_arr = np.diagonal(
-            year_ds[meteoswiss.METEOSWISS_GRID_PRODUCT].sel(
-                time=year_df.index,
-                chx=station_location_meteoswiss_gser.x,
-                chy=station_location_meteoswiss_gser.y,
-                method='nearest'),
-            axis1=1,
-            axis2=2)
-
-        for i, column in enumerate(year_df.columns):
-            regression_df.loc[year_df.index,
-                              (column, 'tair_grid')] = year_grid_arr[:, i]
-
-    # 2.2 and 2.3 - LST and NDWI
+    # 2.1 and 2.2 - LST and NDWI
     # first prepare the kernels to spatially average the landsat features
     kernel_dict = utils.get_kernel_dict()
     for landsat_feature in utils.LANDSAT_BASE_FEATURES:
@@ -162,7 +121,7 @@ def main(station_locations_filepath, station_tair_filepath,
             ]):
                 regression_df[multi_column] = station_feature_arr[:, i]
 
-    # 2.4 - ELEV
+    # 2.3 - ELEV
     for station_column in station_tair_df.columns:
         regression_df[(
             station_column,
@@ -179,9 +138,5 @@ def main(station_locations_filepath, station_tair_filepath,
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO, format=settings.DEFAULT_LOG_FMT)
-
-    # find .env automagically by walking up directories until it's found, then
-    # load up the .env entries as environment variables
-    dotenv.load_dotenv(dotenv.find_dotenv())
 
     main()

@@ -10,7 +10,7 @@ LANDSAT_FEATURES = [
 ]
 
 TARGET = 'tair_station'
-FEATURES = ['tair_grid'] + LANDSAT_FEATURES + ['elev']
+FEATURES = LANDSAT_FEATURES + ['elev']
 REGRESSION_DF_COLUMNS = FEATURES + [TARGET]
 
 
