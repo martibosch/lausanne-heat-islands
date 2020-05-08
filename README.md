@@ -14,6 +14,7 @@ A reusable computational workflow to apply the InVEST urban cooling model to sim
 
 * [Lausanne agglomeration extent](https://github.com/martibosch/lausanne-agglom-extent)
 * [Lausanne tree canopy](https://github.com/martibosch/lausanne-tree-canopy)
+* [InVEST urban cooling model calibration](https://github.com/martibosch/invest-ucm-calibration)
 
 ## Acknowledgments
 
