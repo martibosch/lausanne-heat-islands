@@ -3,6 +3,7 @@ from os import path
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import salem  # noqa: F401
 import seaborn as sns
 import xarray as xr
@@ -236,3 +237,49 @@ def plot_T_maps(T_da,
     fig.subplots_adjust(hspace=-.5)
     # fig.savefig('../reports/figures/spatial-regression-maps.png')
     return g
+
+
+def plot_comparison_hists(T_diff_da, station_tair_df):
+    # figwidth, figheight = plt.rcParams['figure.figsize']
+    # fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(2 * figwidth, figheight))
+    fig, ax = plt.subplots()
+
+    # histograms by date
+    # for date in T_diff_da['time']:
+    #     sns.distplot(T_diff_da.sel(time=date),
+    #                  label=pd.to_datetime(date.item()).strftime('%d-%m-%Y'),
+    #                  ax=ax)
+    sns.distplot(T_diff_da, ax=ax)
+    ax.set_ylabel('$P \; (\hat{T}_{sr} - \hat{T}_{ucm})$')
+    ax.set_xlabel('$\hat{T}_{sr} - \hat{T}_{ucm}$')
+    # ax.legend(loc='center right', bbox_to_anchor=(1.4, .5))
+    # axin2 = ax.inset_axes([.72, .75, .24, .2])
+
+    # diff vs observed temperature in inset
+    # [.04, .75, .24, .2]
+    axin = ax.inset_axes([.72, .72, .24, .24])
+    sns.scatterplot(
+        x=station_tair_df.mean(axis=1),
+        y=T_diff_da.mean(['x', 'y']),
+        hue=pd.to_datetime(T_diff_da['time'].values).strftime('%d-%m-%Y'),
+        # alpha=0.4,  # default for seaborn distplots
+        # legend=False,
+        ax=axin)
+    axin.axhline(color='gray', linestyle='--', linewidth=1)
+    axin.set_ylim([-3, 3])
+    axin.set_yticks([-2, 0, 2])
+    axin.set_ylabel('$\hat{\mu}$', rotation=0, verticalalignment='center')
+    axin.set_xlabel('$T_{obs}$')
+    # place the inset axis' legend outside the main axis
+    handles, labels = axin.get_legend_handles_labels()
+    ax.legend(handles, labels, loc='center right', bbox_to_anchor=(1.34, .5))
+    axin.get_legend().remove()
+
+    # # overall histogram in inset
+    # axin2 = ax.inset_axes([.72, .75, .24, .2])
+    # sns.distplot(T_diff_da, ax=axin2)
+    # axin2.set_ylabel('')
+    # axin2.set_yticks([])
+    # axin2.set_xlabel('')
+
+    return fig
