@@ -98,6 +98,11 @@ def compute_model_perf(obs, pred):
 
 
 # PLOTS
+# ugly hardcoded for the legend of the error classes in map `plot_T_maps`
+ERR_CLASSES = [-5, -3, -1, 1, 3, 5]  # station markers
+ERR_BOUNDARIES = [-12, -6, -2, 2, 6, 12]  # map pixels
+
+
 def plot_pred_obs(comparison_df):
     fig, ax = plt.subplots()
     sns.scatterplot(x='obs', y='pred', data=comparison_df, ax=ax)
@@ -151,7 +156,7 @@ def plot_T_maps(T_da,
                 station_location_df,
                 num_cols=3,
                 comparison_df=None,
-                num_classes=9,
+                err_classes=None,
                 **plot_kws):
     g = T_da.plot(
         x='x',
@@ -182,12 +187,11 @@ def plot_T_maps(T_da,
                     *station_location_df.loc[stn][['x', 'y']]))))
         err_gdf['err'] = comparison_df['pred'] - comparison_df['obs']
 
-        ceil = int(
-            np.ceil(max(abs(err_gdf['err'].max()), abs(err_gdf['err'].min()))))
-        classes = np.linspace(-ceil, ceil, num_classes)
-        err_gdf['err_class'] = np.digitize(err_gdf['err'], classes) - 1
+        if err_classes is None:
+            err_classes = ERR_CLASSES
+        err_gdf['err_class'] = np.digitize(err_gdf['err'], err_classes) - 1
 
-        palette = sns.color_palette('coolwarm', n_colors=num_classes - 1)
+        palette = sns.color_palette('coolwarm', n_colors=len(err_classes) - 1)
         cmap = colors.ListedColormap(palette)
 
         # set black edge color for markers
@@ -199,14 +203,15 @@ def plot_T_maps(T_da,
             # ax.set_xticks([])
             # ax.set_yticks([])
         # generate a legend and place it in the last (empty) axis
-        for start, end, color in zip(classes, classes[1:], palette):
+        for start, end, color in zip(err_classes, err_classes[1:], palette):
             last_ax.plot(0, 0, 'o', c=color, label=f'[{start}, {end})')
-        last_ax.legend(loc='center',
-                       facecolor='white',
-                       title='Regression error $\hat{T} - T$ [$\degree$C]')
+        last_ax.legend(
+            loc='center',
+            facecolor='white',
+            title='Regression error $\hat{T} - T_{obs}$ [$\degree$C]')
         fig.colorbar(g._mappables[-1],
                      ax=last_ax,
-                     label='Map temperature $T$ [$\degree$C]',
+                     label='Map temperature $\hat{T}$ [$\degree$C]',
                      shrink=.45)
 
     else:
@@ -224,7 +229,8 @@ def plot_T_maps(T_da,
                      label='$\hat{T}_{sr} - \hat{T}_{ucm}$ [$\degree$C]',
                      orientation='horizontal',
                      fraction=.55,
-                     shrink=.8)
+                     shrink=.8,
+                     boundaries=ERR_BOUNDARIES)
 
     # g.add_colorbar()
     fig.subplots_adjust(hspace=-.5)

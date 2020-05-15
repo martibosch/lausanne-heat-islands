@@ -9,7 +9,7 @@ from pylandsat import utils as pylandsat_utils
 
 from invest_heat_islands import settings
 
-HOUR_TD = datetime.timedelta(hours=20)
+HOUR_TD = datetime.timedelta(hours=21)
 
 
 def daily_df_from_meteoswiss_zip(zip_filepath, landsat_datetimes, tair_column):
