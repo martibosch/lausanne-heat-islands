@@ -1,5 +1,5 @@
 .PHONY: biophysical_table_shade station_measurements landsat_features \
-	regression_df regressor tair_pred
+	regression_df regressor tair_pred ref_et calibrate_station calibrate_map
 
 
 #################################################################################
@@ -213,7 +213,6 @@ DATA_INVEST_DIR := $(DATA_INTERIM_DIR)/invest
 REF_ET_NC := $(DATA_INVEST_DIR)/ref-et.nc
 #### code
 MAKE_REF_ET_PY := $(CODE_INVEST_DIR)/make_ref_et.py
-# MAKE_CALIBRATE_STATIONS_PY := $(CODE_INVEST_DIR)/make_calibrate_stations.py
 
 ### rules
 $(DATA_INVEST_DIR): | $(DATA_INTERIM_DIR)
@@ -229,27 +228,27 @@ ref_et: $(REF_ET_NC)
 STATION_CALIBRATION_LOG_JSON := $(DATA_INVEST_DIR)/station-calibration-log.json
 MAP_CALIBRATION_LOG_JSON := $(DATA_INVEST_DIR)/map-calibration-log.json
 #### code
-MAKE_CALIBRATE_PY := $(CODE_INVEST_DIR)/make_calibrate.py
+MAKE_CALIBRATE_UCM_PY := $(CODE_INVEST_DIR)/make_calibrate_ucm.py
 
 ### rules
 #### we do not list `$(AGGLOM_EXTENT_SHP)` as requirement because we are not
 #### actually using it, just passing it because the InVEST urban cooling model
 #### requires a shapefile for the area of interest
-$(STATION_CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_CSV) \
+$(STATION_CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_SHADE_CSV) \
 	$(REF_ET_NC) $(STATION_LOCATIONS_CSV) $(STATION_TAIR_CSV) \
-	$(MAKE_CALIBRATE_PY)
-	python $(MAKE_CALIBRATE_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
-		$(BIOPHYSICAL_TABLE_CSV) $(REF_ET_NC) $@ \
+	$(MAKE_CALIBRATE_UCM_PY)
+	python $(MAKE_CALIBRATE_UCM_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
+		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) $@\
 		--station-locations-filepath $(STATION_LOCATIONS_CSV) \
 		--station-tair-filepath $(STATION_TAIR_CSV)
 calibrate_station: $(STATION_CALIBRATION_LOG_JSON)
 
-$(MAP_CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_CSV) \
-	$(REF_ET_NC) $(TAIR_PRED_NC) $(MAKE_CALIBRATE_PY)
-	python $(MAKE_CALIBRATE_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
-		$(BIOPHYSICAL_TABLE_CSV) $(REF_ET_NC) $@ \
+$(MAP_CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_SHADE_CSV) \
+	$(REF_ET_NC) $(TAIR_PRED_NC) $(MAKE_CALIBRATE_UCM_PY)
+	python $(MAKE_CALIBRATE_UCM_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
+		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) $@ \
 		--tair-pred-filepath $(TAIR_PRED_NC) --accept-coeff 3
-calibrate_map: $(STATION_CALIBRATION_LOG_JSON)
+calibrate_map: $(MAP_CALIBRATION_LOG_JSON)
 
 
 #################################################################################
