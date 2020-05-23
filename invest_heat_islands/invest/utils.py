@@ -1,4 +1,6 @@
+import os
 import tempfile
+from collections import abc
 from os import path
 
 import dask
@@ -10,7 +12,6 @@ import salem  # noqa: F401
 import xarray as xr
 from natcap.invest import urban_cooling_model as ucm
 from rasterio import transform
-from rasterio.enums import Resampling
 from sklearn import metrics
 
 # constants useful for the invest ucm
@@ -113,8 +114,8 @@ def _get_ref_eto_filepath(date, dst_dir):
         dst_dir, f'ref_eto_{pd.to_datetime(date).strftime("%Y-%m-%d")}.tif')
 
 
-def dump_ref_et_rasters(ref_et_filepath, dst_dir):
-    ref_et_da = xr.open_dataarray(ref_et_filepath)
+def dump_ref_et_rasters(ref_et_da, dst_dir):
+    # ref_et_da = xr.open_dataarray(ref_et_filepath)
 
     # prepare metadata to dump the potential evapotranspiration rasters
     ref_et_da.name = 'ref_et'
@@ -148,11 +149,11 @@ class ModelWrapper:
     def __init__(self,
                  lulc_raster_filepath,
                  biophysical_table_filepath,
-                 ref_et_filepath_dict,
+                 ref_et_rasters,
                  aoi_vector_filepath,
-                 station_tair_filepath=None,
-                 station_locations_filepath=None,
-                 tair_da_filepath=None,
+                 station_tair_filepath,
+                 station_locations_filepath,
+                 workspace_dir=None,
                  model_params=None,
                  extra_ucm_args=None,
                  num_workers=8):
@@ -169,85 +170,58 @@ class ModelWrapper:
             extra_ucm_args = DEFAULT_EXTRA_UCM_ARGS
         self.base_args.update(**extra_ucm_args)
 
+        if workspace_dir is None:
+            # TODO: how do we ensure that this is removed?
+            workspace_dir = tempfile.mkdtemp()
+            # TODO: log to warn that we are using a temporary directory
+        self.workspace_dir = workspace_dir
+
         # evapotranspiration rasters for each date
+        if isinstance(ref_et_rasters, abc.Mapping):
+            # this is a mapping of the form day->ref et filepath
+            ref_et_filepath_dict = ref_et_rasters
+        else:  # data array or nc file
+            ref_et_dir = path.join(workspace_dir, 'ref_et')
+            if not path.exists(ref_et_dir):
+                os.mkdir(ref_et_dir)
+            if not isinstance(ref_et_rasters, xr.DataArray):
+                # str, file object or pathlib.Path
+                ref_et_rasters = xr.open_dataarray(ref_et_rasters)
+            # dump them so that we have a dict of the form day->ref et filepath
+            ref_et_filepath_dict = dump_ref_et_rasters(ref_et_rasters,
+                                                       ref_et_dir)
         self.ref_et_filepath_dict = ref_et_filepath_dict
 
-        # useful to predict air temperature rasters
-        with rio.open(lulc_raster_filepath) as src:
-            self.meta = src.meta.copy()
-
-        # with open(calibration_log_filepath) as src:
-        #     self.base_args.update(**json.load(src)['params'])
-
-        if station_locations_filepath is not None and \
-           station_tair_filepath is not None:
-            # calibrate against station measurements
-            station_location_df = pd.read_csv(station_locations_filepath,
-                                              index_col=0)
-            with rio.open(lulc_raster_filepath) as src:
-                self.station_rows, self.station_cols = transform.rowcol(
-                    src.transform, station_location_df['x'],
-                    station_location_df['y'])
-
-            station_tair_df = pd.read_csv(
-                station_tair_filepath, index_col=0)[station_location_df.index]
-            station_tair_df.index = pd.to_datetime(station_tair_df.index)
-            self.dates = station_tair_df.index
-            self.station_tair_df = station_tair_df
-
-            # tref and uhi max
-            self.Tref_ser = station_tair_df.min(axis=1)
-            self.uhi_max_ser = station_tair_df.max(axis=1) - self.Tref_ser
-
-            # prepare the flat observation array to compute mean squared error
-            obs_arr = station_tair_df.values.flatten()
-            self.obs_mask = ~np.isnan(obs_arr)
-            self.obs_arr = obs_arr[self.obs_mask]
-
-            # prepare the cost function and its arguments
-            self.predict_T = self._predict_T_station
-        else:
-            # calibrate against a map
-            T_da = xr.open_dataarray(tair_da_filepath)
-
-            # tref and uhi max
-            self.Tref_ser = T_da.groupby('time').min(['x', 'y']).to_pandas()
-            self.uhi_max_ser = T_da.groupby('time').max(
-                ['x', 'y']).to_pandas() - self.Tref_ser
-
-            # prepare the flat observation array to compute mean squared error
-            obs_arr = T_da.values.flatten()
-            self.obs_mask = ~np.isnan(obs_arr)
-            self.obs_arr = obs_arr[self.obs_mask]
-
-            # prepare the cost function and its arguments
-            # shape of the map (for each date)
-            self.map_shape = T_da.shape[1:]
-            self.predict_T = self._predict_T_map
-
         # for the calibration
+        station_location_df = pd.read_csv(station_locations_filepath,
+                                          index_col=0)
+        with rio.open(lulc_raster_filepath) as src:
+            self.station_rows, self.station_cols = transform.rowcol(
+                src.transform, station_location_df['x'],
+                station_location_df['y'])
+            # useful to predict air temperature rasters
+            self.meta = src.meta.copy()
+            self.data_mask = src.dataset_mask().astype(bool)
+
+        station_tair_df = pd.read_csv(station_tair_filepath,
+                                      index_col=0)[station_location_df.index]
+        station_tair_df.index = pd.to_datetime(station_tair_df.index)
+        self.dates = station_tair_df.index
+        self.station_tair_df = station_tair_df
+
+        # tref and uhi max
+        self.Tref_ser = station_tair_df.min(axis=1)
+        self.uhi_max_ser = station_tair_df.max(axis=1) - self.Tref_ser
+
+        # prepare the flat observation array to compute mean squared error
+        obs_arr = station_tair_df.values.flatten()
+        self.obs_mask = ~np.isnan(obs_arr)
+        self.obs_arr = obs_arr[self.obs_mask]
+
+        # number of workers to perform each calibration iteration at scale
+        if num_workers is None:
+            num_workers = min(len(self.ref_et_filepath_dict), os.cpu_count())
         self.num_workers = num_workers
-
-    def _predict_T_raster(self, date, model_args=None, read_kws=None):
-        if model_args is None:
-            model_args = self.base_args
-        if read_kws is None:
-            read_kws = {}
-
-        date_args = model_args.copy()
-        with tempfile.TemporaryDirectory() as workspace_dir:
-            date_args.update(
-                workspace_dir=workspace_dir,
-                ref_eto_raster_path=self.ref_et_filepath_dict[date],
-                # t_ref=Tref_da.sel(time=date).item(),
-                # uhi_max=uhi_max_da.sel(time=date).item()
-                t_ref=self.Tref_ser[date],
-                uhi_max=self.uhi_max_ser[date])
-            ucm.execute(date_args)
-
-            with rio.open(path.join(workspace_dir, 'intermediate',
-                                    'T_air.tif')) as src:
-                return src.read(1, **read_kws)
 
     @property
     def grid_x(self):
@@ -269,44 +243,60 @@ class ModelWrapper:
             self._grid_y = y
             return self._grid_y
 
+    def predict_T_arr(self, date, model_args=None, read_kws=None):
+        if model_args is None:
+            model_args = self.base_args
+        if read_kws is None:
+            read_kws = {}
+
+        # note that this workspace_dir corresponds to this date only
+        workspace_dir = path.join(self.workspace_dir, str(date))
+        date_args = model_args.copy()
+        date_args.update(
+            workspace_dir=workspace_dir,
+            ref_eto_raster_path=self.ref_et_filepath_dict[date],
+            # t_ref=Tref_da.sel(time=date).item(),
+            # uhi_max=uhi_max_da.sel(time=date).item()
+            t_ref=self.Tref_ser[date],
+            uhi_max=self.uhi_max_ser[date])
+        ucm.execute(date_args)
+
+        with rio.open(path.join(workspace_dir, 'intermediate',
+                                'T_air.tif')) as src:
+            return src.read(1, **read_kws)
+
+    def predict_T_stations(self, date, model_args=None):
+        return self.predict_T_arr(date, model_args,
+                                  {})[self.station_rows, self.station_cols]
+
     def predict_T_da(self, dates=None, read_kws=None):
         if dates is None:
             # just so that we can iterate over the dictionary keys (dates)
             dates = list(self.ref_et_filepath_dict.keys())
 
         if len(dates) == 1:
-            T_rasters = [
-                self._predict_T_raster(dates[0], self.base_args, read_kws)
-            ]
+            T_arrs = [self.predict_T_arr(dates[0], self.base_args, read_kws)]
         else:
             pred_delayed = [
-                dask.delayed(self._predict_T_raster)(date, self.base_args,
-                                                     read_kws)
-                for date in dates
+                dask.delayed(self.predict_T_arr)(date, self.base_args,
+                                                 read_kws) for date in dates
             ]
 
-            T_rasters = list(
+            T_arrs = list(
                 dask.compute(*pred_delayed,
                              scheduler='processes',
                              num_workers=self.num_workers))
-        return xr.DataArray(T_rasters,
+        T_da = xr.DataArray(T_arrs,
                             dims=('time', 'y', 'x'),
                             coords={
                                 'time': dates,
                                 'y': self.grid_y,
                                 'x': self.grid_x
                             },
-                            attrs={'pyproj_srs': self.meta['crs']})
-
-    def _predict_T_station(self, date, model_args=None):
-        return self._predict_T_raster(date, model_args,
-                                      {})[self.station_rows, self.station_cols]
-
-    def _predict_T_map(self, date, model_args=None):
-        return self._predict_T_raster(date, model_args, {
-            'out_shape': self.map_shape,
-            'resampling': Resampling.bilinear
-        }).flatten()
+                            name='T',
+                            attrs={'pyproj_srs': self.meta['crs'].to_proj4()})
+        return T_da.groupby(
+            'time').apply(lambda x: x.where(self.data_mask, np.nan))
 
     def _params_to_rmse(self, x):
         iter_args = self.base_args.copy()
@@ -318,7 +308,7 @@ class ModelWrapper:
 
         # we could also iterate over the index of `Tref_ser` or `uhi_max_ser`
         pred_delayed = [
-            dask.delayed(self.predict_T)(date, iter_args)
+            dask.delayed(self.predict_T_stations)(date, iter_args)
             for date in self.ref_et_filepath_dict
         ]
 
@@ -355,3 +345,23 @@ class ModelWrapper:
         })
 
         return states, rmses
+
+    def get_comparison_df(self):
+        tair_pred_df = pd.DataFrame(index=self.station_tair_df.columns)
+
+        T_da = self.predict_T_da()
+        for date, date_da in T_da.groupby('time'):
+            tair_pred_df[date] = date_da.values[self.station_rows, self.
+                                                station_cols]
+        tair_pred_df = tair_pred_df.transpose()
+
+        # comparison_df['err'] = comparison_df['pred'] - comparison_df['obs']
+        # comparison_df['sq_err'] = comparison_df['err']**2
+        return pd.concat([self.station_tair_df.stack(),
+                          tair_pred_df.stack()],
+                         axis=1).reset_index().rename(columns={
+                             'level_0': 'date',
+                             'level_1': 'station',
+                             0: 'obs',
+                             1: 'pred'
+                         })

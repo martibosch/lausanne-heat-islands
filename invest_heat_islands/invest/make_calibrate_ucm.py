@@ -15,16 +15,13 @@ from invest_heat_islands.invest import utils
 @click.argument('aoi_vector_filepath', type=click.Path(exists=True))
 @click.argument('biophysical_table_filepath', type=click.Path(exists=True))
 @click.argument('ref_et_filepath', type=click.Path(exists=True))
+@click.argument('station_locations_filepath',
+                type=click.Path(exists=True),
+                required=False)
+@click.argument('station_tair_filepath',
+                type=click.Path(exists=True),
+                required=False)
 @click.argument('dst_filepath', type=click.Path())
-@click.option('--station-locations-filepath',
-              type=click.Path(exists=True),
-              required=False)
-@click.option('--station-tair-filepath',
-              type=click.Path(exists=True),
-              required=False)
-@click.option('--tair-pred-filepath',
-              type=click.Path(exists=True),
-              required=False)
 @click.option('--x0-tair-avg-radius', type=float, default=500)
 @click.option('--x0-green-area-cooling-dist', type=float, default=100)
 @click.option('--x0-w-shade', type=float, default=0.6)
@@ -34,10 +31,9 @@ from invest_heat_islands.invest import utils
 @click.option('--accept-coeff', type=float, default=2)
 @click.option('--num-iters', type=int, default=100)
 def main(agglom_lulc_filepath, aoi_vector_filepath, biophysical_table_filepath,
-         ref_et_filepath, dst_filepath, station_locations_filepath,
-         station_tair_filepath, tair_pred_filepath, x0_tair_avg_radius,
-         x0_green_area_cooling_dist, x0_w_shade, x0_w_albedo, x0_w_eti,
-         stepsize, accept_coeff, num_iters):
+         ref_et_filepath, station_locations_filepath, station_tair_filepath,
+         dst_filepath, x0_tair_avg_radius, x0_green_area_cooling_dist,
+         x0_w_shade, x0_w_albedo, x0_w_eti, stepsize, accept_coeff, num_iters):
     logger = logging.getLogger(__name__)
     # disable InVEST's logging
     for module in ('natcap.invest.urban_cooling_model', 'natcap.invest.utils',
@@ -48,19 +44,14 @@ def main(agglom_lulc_filepath, aoi_vector_filepath, biophysical_table_filepath,
 
     # tmp_dir = tempfile.mkdtemp()
     with tempfile.TemporaryDirectory() as tmp_dir:
-        # dump the evapotranspiration rasters
-        ref_et_filepath_dict = utils.dump_ref_et_rasters(
-            ref_et_filepath, tmp_dir)
-
         # wrapper to calibrate the model (with simulated annealing)
-        mw = utils.ModelWrapper(
-            agglom_lulc_filepath,
-            biophysical_table_filepath,
-            ref_et_filepath_dict,
-            aoi_vector_filepath,
-            station_tair_filepath=station_tair_filepath,
-            station_locations_filepath=station_locations_filepath,
-            tair_da_filepath=tair_pred_filepath)
+        mw = utils.ModelWrapper(agglom_lulc_filepath,
+                                biophysical_table_filepath,
+                                ref_et_filepath,
+                                aoi_vector_filepath,
+                                station_tair_filepath,
+                                station_locations_filepath,
+                                workspace_dir=tmp_dir)
         # prepare initial solution for the calibration from the script args
         x0 = [
             x0_tair_avg_radius, x0_green_area_cooling_dist, x0_w_shade,

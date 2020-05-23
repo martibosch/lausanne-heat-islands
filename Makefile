@@ -1,6 +1,6 @@
-.PHONY: biophysical_table_shade station_measurements landsat_features \
-	regression_df regressor tair_regr_maps ref_et calibrate_station \
-	calibrate_map
+.PHONY: download_tree_canopy biophysical_table_shade station_measurements \
+	landsat_features regression_df regressor swiss_dem tair_regr_maps \
+	ref_et calibrate_ucm tair_ucm_maps
 
 
 #################################################################################
@@ -77,6 +77,7 @@ $(AGGLOM_LULC_TIF): | $(DATA_RAW_DIR)
 	python $(DOWNLOAD_S3_PY) $(AGGLOM_LULC_FILE_KEY) $@
 $(TREE_CANOPY_TIF): | $(DATA_RAW_DIR)
 	python $(DOWNLOAD_S3_PY) $(TREE_CANOPY_FILE_KEY) $@
+download_tree_canopy: $(TREE_CANOPY_TIF)
 $(BIOPHYSICAL_TABLE_SHADE_CSV): $(AGGLOM_LULC_TIF) $(TREE_CANOPY_TIF) \
 	$(BIOPHYSICAL_TABLE_CSV) $(MAKE_BIOPHYSICAL_TABLE_SHADE_PY)
 	python $(MAKE_BIOPHYSICAL_TABLE_SHADE_PY) $(AGGLOM_LULC_TIF) \
@@ -194,7 +195,7 @@ $(SWISS_DEM_TIF): $(DHM200_ASC)
 	gdalwarp -s_srs EPSG:21781 -t_srs $(CRS) -of vrt $< $(TEMP_VRT)
 	gdal_translate -of GTiff $(TEMP_VRT) $@
 	rm $(TEMP_VRT)
-
+swiss_dem: $(SWISS_DEM_TIF)
 $(TAIR_REGR_MAPS_NC): $(AGGLOM_EXTENT_SHP) $(STATION_TAIR_CSV) \
 	$(LANDSAT_FEATURES_NC) $(SWISS_DEM_TIF) $(REGRESSOR_JOBLIB) \
 	$(MAKE_TAIR_REGR_MAPS_PY) | $(DATA_PROCESSED_DIR)
@@ -227,8 +228,7 @@ ref_et: $(REF_ET_NC)
 
 ## 1. Calibrate the model
 ### variables
-STATION_CALIBRATION_LOG_JSON := $(DATA_INVEST_DIR)/station-calibration-log.json
-MAP_CALIBRATION_LOG_JSON := $(DATA_INVEST_DIR)/map-calibration-log.json
+CALIBRATION_LOG_JSON := $(DATA_INVEST_DIR)/calibration-log.json
 #### code
 MAKE_CALIBRATE_UCM_PY := $(CODE_INVEST_DIR)/make_calibrate_ucm.py
 
@@ -236,22 +236,30 @@ MAKE_CALIBRATE_UCM_PY := $(CODE_INVEST_DIR)/make_calibrate_ucm.py
 #### we do not list `$(AGGLOM_EXTENT_SHP)` as requirement because we are not
 #### actually using it, just passing it because the InVEST urban cooling model
 #### requires a shapefile for the area of interest
-$(STATION_CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_SHADE_CSV) \
+$(CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_SHADE_CSV) \
 	$(REF_ET_NC) $(STATION_LOCATIONS_CSV) $(STATION_TAIR_CSV) \
 	$(MAKE_CALIBRATE_UCM_PY)
 	python $(MAKE_CALIBRATE_UCM_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
-		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) $@\
-		--station-locations-filepath $(STATION_LOCATIONS_CSV) \
-		--station-tair-filepath $(STATION_TAIR_CSV)
-calibrate_station: $(STATION_CALIBRATION_LOG_JSON)
+		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) \
+		$(STATION_LOCATIONS_CSV) $(STATION_TAIR_CSV) $@		
+calibrate_ucm: $(CALIBRATION_LOG_JSON)
 
-$(MAP_CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_SHADE_CSV) \
-	$(REF_ET_NC) $(TAIR_PRED_NC) $(MAKE_CALIBRATE_UCM_PY)
-	python $(MAKE_CALIBRATE_UCM_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
-		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) $@ \
-		--tair-pred-filepath $(TAIR_PRED_NC) --accept-coeff 3
-calibrate_map: $(MAP_CALIBRATION_LOG_JSON)
+## 2. Simulate the air temperature maps
+### variables
+TAIR_UCM_MAPS_NC := $(DATA_PROCESSED_DIR)/tair-ucm-maps.nc
+#### code
+MAKE_TAIR_UCM_MAPS_PY := $(CODE_INVEST_DIR)/make_tair_ucm_maps.py
 
+### rules
+$(TAIR_UCM_MAPS_NC): $(CALIBRATION_LOG_JSON) $(AGGLOM_EXTENT_SHP) \
+	$(AGGLOM_LULC_TIF) $(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) \
+	$(STATION_TAIR_CSV) $(STATION_LOCATIONS_CSV) $(MAKE_TAIR_UCM_MAPS_PY) \
+	| $(DATA_PROCESSED_DIR)
+	python $(MAKE_TAIR_UCM_MAPS_PY) $(CALIBRATION_LOG_JSON) \
+		$(AGGLOM_EXTENT_SHP) $(AGGLOM_LULC_TIF) \
+		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) $(STATION_TAIR_CSV) \
+		$(STATION_LOCATIONS_CSV) $@
+tair_ucm_maps: $(TAIR_UCM_MAPS_NC)
 
 #################################################################################
 # Self Documenting Commands                                                     #

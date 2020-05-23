@@ -7,8 +7,8 @@ import geopandas as gpd
 import joblib as jl
 import numpy as np
 import pandas as pd
+import salem  # noqa: F401
 import xarray as xr
-from rasterio import features, transform
 from scipy import ndimage as ndi
 
 from invest_heat_islands import geo_utils, meteoswiss, settings
@@ -67,24 +67,9 @@ def main(agglom_extent_filepath, station_tair_filepath,
     # add a buffer to compute the convolution features well
     ref_geom = data_geom.buffer(buffer_dist)
 
-    # use the bounds of the ref geometry to obtain the reference grid with the
+    # use the ref geometry to obtain the reference grid (data array) with the
     # target resolution
-    west, south, east, north = ref_geom.bounds
-    ref_nodata = 0
-    ref_height, ref_width = tuple(
-        int(np.ceil(diff / dst_res)) for diff in [north - south, east - west])
-    ref_transform = transform.from_origin(west, north, dst_res, dst_res)
-    rows = np.arange(ref_height)
-    cols = np.arange(ref_width)
-    xs, _ = transform.xy(ref_transform, cols, cols)
-    _, ys = transform.xy(ref_transform, rows, rows)
-    ref_da = xr.DataArray(ref_nodata,
-                          dims=('y', 'x'),
-                          coords={
-                              'y': ys,
-                              'x': xs
-                          })
-    ref_da.attrs['pyproj_srs'] = crs
+    ref_da = geo_utils.get_ref_da(ref_geom, dst_res, dst_fill=0, dst_crs=crs)
 
     # read the dates from the air temperature station measurements data frame
     # we need at least series to groupby year and access the group series
@@ -159,6 +144,7 @@ def main(agglom_extent_filepath, station_tair_filepath,
                                  'y': T_grid_da.y,
                                  'x': T_grid_da.x
                              },
+                             name='T',
                              attrs=landsat_features_ds.attrs)
 
     # 3. Crop the data array to the valid data region and dump it to a file
