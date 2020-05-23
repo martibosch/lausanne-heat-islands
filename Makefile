@@ -227,7 +227,7 @@ ref_et: $(REF_ET_NC)
 
 ## 1. Calibrate the model
 ### variables
-CALIBRATION_LOG_JSON := $(DATA_INVEST_DIR)/calibration-log.json
+CALIBRATED_PARAMS_JSON := $(DATA_INVEST_DIR)/calibrated-params.json
 #### code
 MAKE_CALIBRATE_UCM_PY := $(CODE_INVEST_DIR)/make_calibrate_ucm.py
 
@@ -235,13 +235,13 @@ MAKE_CALIBRATE_UCM_PY := $(CODE_INVEST_DIR)/make_calibrate_ucm.py
 #### we do not list `$(AGGLOM_EXTENT_SHP)` as requirement because we are not
 #### actually using it, just passing it because the InVEST urban cooling model
 #### requires a shapefile for the area of interest
-$(CALIBRATION_LOG_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_SHADE_CSV) \
+$(CALIBRATED_PARAMS_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_SHADE_CSV) \
 	$(REF_ET_NC) $(STATION_LOCATIONS_CSV) $(STATION_TAIR_CSV) \
 	$(MAKE_CALIBRATE_UCM_PY)
 	python $(MAKE_CALIBRATE_UCM_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
 		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) \
 		$(STATION_LOCATIONS_CSV) $(STATION_TAIR_CSV) $@		
-calibrate_ucm: $(CALIBRATION_LOG_JSON)
+calibrate_ucm: $(CALIBRATED_PARAMS_JSON)
 
 ## 2. Simulate the air temperature maps
 ### variables
@@ -250,11 +250,11 @@ TAIR_UCM_MAPS_NC := $(DATA_PROCESSED_DIR)/tair-ucm-maps.nc
 MAKE_TAIR_UCM_MAPS_PY := $(CODE_INVEST_DIR)/make_tair_ucm_maps.py
 
 ### rules
-$(TAIR_UCM_MAPS_NC): $(CALIBRATION_LOG_JSON) $(AGGLOM_EXTENT_SHP) \
+$(TAIR_UCM_MAPS_NC): $(CALIBRATED_PARAMS_JSON) $(AGGLOM_EXTENT_SHP) \
 	$(AGGLOM_LULC_TIF) $(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) \
 	$(STATION_TAIR_CSV) $(STATION_LOCATIONS_CSV) $(MAKE_TAIR_UCM_MAPS_PY) \
 	| $(DATA_PROCESSED_DIR)
-	python $(MAKE_TAIR_UCM_MAPS_PY) $(CALIBRATION_LOG_JSON) \
+	python $(MAKE_TAIR_UCM_MAPS_PY) $(CALIBRATED_PARAMS_JSON) \
 		$(AGGLOM_EXTENT_SHP) $(AGGLOM_LULC_TIF) \
 		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) $(STATION_TAIR_CSV) \
 		$(STATION_LOCATIONS_CSV) $@

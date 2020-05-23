@@ -9,8 +9,8 @@ import salem  # noqa: F401
 import xarray as xr
 from scipy import ndimage as ndi
 
-from invest_heat_islands import geo_utils, settings
-from invest_heat_islands.regression import utils
+from invest_heat_islands import settings, utils
+from invest_heat_islands.regression import utils as regr_utils
 
 
 def get_savg_feature_ds(day_da, kernel_dict):
@@ -21,7 +21,7 @@ def get_savg_feature_ds(day_da, kernel_dict):
     # first: radius 0 (no averaging)
     ds[f'{name}_0'] = day_da
     for pixel_radius, averaging_radius in zip(kernel_dict,
-                                              utils.AVERAGING_RADII[1:]):
+                                              regr_utils.AVERAGING_RADII[1:]):
         kernel_arr = kernel_dict[pixel_radius]
         ds[f'{name}_{averaging_radius}'] = xr.apply_ufunc(
             lambda da: ndi.convolve(da, kernel_arr) / kernel_arr.sum(), day_da)
@@ -30,7 +30,7 @@ def get_savg_feature_ds(day_da, kernel_dict):
 
 def predict_T(regr, landsat_features_ds, dem_arr, T_nodata=np.nan):
     features = []
-    for landsat_feature in utils.LANDSAT_FEATURES:
+    for landsat_feature in regr_utils.LANDSAT_FEATURES:
         features.append(landsat_features_ds[landsat_feature].values.flatten())
     features.append(dem_arr.flatten())
     X = np.column_stack(features)
@@ -67,7 +67,7 @@ def main(agglom_extent_filepath, station_tair_filepath,
 
     # use the ref geometry to obtain the reference grid (data array) with the
     # target resolution
-    ref_da = geo_utils.get_ref_da(ref_geom, dst_res, dst_fill=0, dst_crs=crs)
+    ref_da = utils.get_ref_da(ref_geom, dst_res, dst_fill=0, dst_crs=crs)
 
     # read the dates from the air temperature station measurements data frame
     # we need at least series to groupby year and access the group series
@@ -88,8 +88,8 @@ def main(agglom_extent_filepath, station_tair_filepath,
     landsat_features_ds = ref_da.salem.transform(landsat_features_ds,
                                                  interp='linear')
     # spatial averaging
-    kernel_dict = utils.get_kernel_dict(res=dst_res)
-    for landsat_feature in utils.LANDSAT_BASE_FEATURES:
+    kernel_dict = regr_utils.get_kernel_dict(res=dst_res)
+    for landsat_feature in regr_utils.LANDSAT_BASE_FEATURES:
         landsat_features_ds = landsat_features_ds.assign(
             landsat_features_ds[landsat_feature].groupby('time').map(
                 get_savg_feature_ds,
@@ -100,7 +100,7 @@ def main(agglom_extent_filepath, station_tair_filepath,
     # 1.3 Elevation
     # dem_s3_filepath = path.join(bucket_name, dem_file_key)
     # with fs_s3.open(dem_s3_filepath) as dem_file_obj:
-    dem_da = geo_utils.salem_da_from_singleband(swiss_dem_filepath)
+    dem_da = utils.salem_da_from_singleband(swiss_dem_filepath)
     # align it
     dem_arr = landsat_features_ds.salem.transform(dem_da,
                                                   interp='linear').values

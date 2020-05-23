@@ -5,12 +5,12 @@ import warnings
 import click
 import geopandas as gpd
 
-from invest_heat_islands import geo_utils, settings
-from invest_heat_islands.invest import utils
+from invest_heat_islands import settings, utils
+from invest_heat_islands.invest import utils as invest_utils
 
 
 @click.command()
-@click.argument('calibration_log_filepath', type=click.Path(exists=True))
+@click.argument('calibrated_params_filepath', type=click.Path(exists=True))
 @click.argument('agglom_extent_filepath', type=click.Path(exists=True))
 @click.argument('agglom_lulc_filepath', type=click.Path(exists=True))
 @click.argument('biophysical_table_filepath', type=click.Path(exists=True))
@@ -19,7 +19,7 @@ from invest_heat_islands.invest import utils
 @click.argument('station_locations_filepath', type=click.Path(exists=True))
 @click.argument('dst_filepath', type=click.Path())
 @click.option('--dst-res', type=int, default=200)
-def main(calibration_log_filepath, agglom_extent_filepath,
+def main(calibrated_params_filepath, agglom_extent_filepath,
          agglom_lulc_filepath, biophysical_table_filepath, ref_et_filepath,
          station_tair_filepath, station_locations_filepath, dst_filepath,
          dst_res):
@@ -41,19 +41,19 @@ def main(calibration_log_filepath, agglom_extent_filepath,
 
     # use the ref geometry to obtain the reference grid (data array) with the
     # target resolution
-    ref_da = geo_utils.get_ref_da(ref_geom, dst_res, dst_fill=0, dst_crs=crs)
+    ref_da = utils.get_ref_da(ref_geom, dst_res, dst_fill=0, dst_crs=crs)
 
-    with open(calibration_log_filepath) as src:
-        model_params = json.load(src)['args']
+    with open(calibrated_params_filepath) as src:
+        model_params = json.load(src)
 
-    mw = utils.ModelWrapper(agglom_lulc_filepath,
-                            biophysical_table_filepath,
-                            ref_et_filepath,
-                            agglom_extent_filepath,
-                            station_tair_filepath,
-                            station_locations_filepath,
-                            model_params=model_params)
-    T_ucm_da = mw.predict_T_da()
+    ucm_wrapper = invest_utils.UCMWrapper(agglom_lulc_filepath,
+                                          biophysical_table_filepath,
+                                          agglom_extent_filepath,
+                                          ref_et_filepath,
+                                          station_tair_filepath,
+                                          station_locations_filepath,
+                                          extra_ucm_args=model_params)
+    T_ucm_da = ucm_wrapper.predict_t_da()
     T_ucm_da = ref_da.salem.transform(T_ucm_da, interp='linear')
 
     # 3. Crop the data array to the valid data region and dump it to a file

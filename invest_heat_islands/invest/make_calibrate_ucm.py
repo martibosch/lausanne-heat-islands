@@ -5,9 +5,10 @@ import warnings
 
 import click
 import dotenv
+import invest_ucm_calibration as iuc
 
 from invest_heat_islands import settings
-from invest_heat_islands.invest import utils
+from invest_heat_islands.invest import utils as invest_utils
 
 
 @click.command()
@@ -27,42 +28,56 @@ from invest_heat_islands.invest import utils
 @click.option('--x0-w-shade', type=float, default=0.6)
 @click.option('--x0-w-albedo', type=float, default=0.2)
 @click.option('--x0-w-eti', type=float, default=0.2)
+@click.option('--metric', default='R2')
 @click.option('--stepsize', type=float, default=0.3)
-@click.option('--accept-coeff', type=float, default=2)
-@click.option('--num-iters', type=int, default=100)
 def main(agglom_lulc_filepath, aoi_vector_filepath, biophysical_table_filepath,
          ref_et_filepath, station_locations_filepath, station_tair_filepath,
          dst_filepath, x0_tair_avg_radius, x0_green_area_cooling_dist,
-         x0_w_shade, x0_w_albedo, x0_w_eti, stepsize, accept_coeff, num_iters):
+         x0_w_shade, x0_w_albedo, x0_w_eti, metric, stepsize):
     logger = logging.getLogger(__name__)
     # disable InVEST's logging
     for module in ('natcap.invest.urban_cooling_model', 'natcap.invest.utils',
-                   'pygeoprocessing.geoprocessing'):
+                   'pygeoprocessing.geoprocessing', 'taskgraph.Task'):
         logging.getLogger(module).setLevel(logging.WARNING)
     # ignore all warnings
     warnings.filterwarnings('ignore')
 
     # tmp_dir = tempfile.mkdtemp()
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        # wrapper to calibrate the model (with simulated annealing)
-        mw = utils.ModelWrapper(agglom_lulc_filepath,
-                                biophysical_table_filepath,
-                                ref_et_filepath,
-                                aoi_vector_filepath,
-                                station_tair_filepath,
-                                station_locations_filepath,
-                                workspace_dir=tmp_dir)
-        # prepare initial solution for the calibration from the script args
-        x0 = [
+    with tempfile.TemporaryDirectory() as workspace_dir:
+        # dump ref et rasters
+        ref_et_raster_filepath_dict = invest_utils.dump_ref_et_rasters(
+            ref_et_filepath, workspace_dir)
+
+        # prepare initial solution
+        # model_params = {
+        #     't_air_average_radius': x0_tair_avg_radius,
+        #     'green_area_cooling_distance': x0_green_area_cooling_dist,
+        #     'cc_weight_shade': x0_w_shade,
+        #     'cc_weight_albedo': x0_w_albedo,
+        #     'cc_weight_eti': x0_w_eti
+        # }
+        initial_solution = [
             x0_tair_avg_radius, x0_green_area_cooling_dist, x0_w_shade,
             x0_w_albedo, x0_w_eti
         ]
+
+        # client = distributed.Client('tcp://165.22.198.117:8786')
+        ucm_calibrator = iuc.UCMCalibrator(
+            agglom_lulc_filepath,
+            biophysical_table_filepath,
+            aoi_vector_filepath,
+            'factors',
+            list(ref_et_raster_filepath_dict.values()),
+            station_t_filepath=station_tair_filepath,
+            station_locations_filepath=station_locations_filepath,
+            workspace_dir=workspace_dir,
+            # model_params=model_params,
+            initial_solution=initial_solution,
+            metric=metric,
+            stepsize=stepsize)
+
         # make it happen
-        states, rmses = mw.calibrate(x0,
-                                     stepsize=stepsize,
-                                     accept_coeff=accept_coeff,
-                                     num_iters=num_iters,
-                                     print_func=logger.info)
+        solution, cost = ucm_calibrator.anneal()
     # # delete the tmp dir
     # shutil.rmtree(tmp_dir)
 
@@ -70,14 +85,11 @@ def main(agglom_lulc_filepath, aoi_vector_filepath, biophysical_table_filepath,
     with open(dst_filepath, 'w') as dst:
         json.dump(
             {
-                'args': {
-                    param_key: mw.base_args[param_key]
-                    for param_key in utils.DEFAULT_MODEL_PARAMS
-                },
-                'states': states,
-                'rmses': rmses
+                param_key: param_value
+                for param_key, param_value in zip(
+                    iuc.settings.DEFAULT_MODEL_PARAMS, solution)
             }, dst)
-    logger.info("dumped calibration log and best parameters to %s",
+    logger.info("dumped calibrated parameters (R^2=%f) to %s", 1 - cost,
                 dst_filepath)
 
 

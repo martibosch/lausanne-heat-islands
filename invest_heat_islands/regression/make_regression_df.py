@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from invest_heat_islands import geo_utils, settings
-from invest_heat_islands.regression import utils
+from invest_heat_islands import settings, utils
+from invest_heat_islands.regression import utils as regr_utils
 
 
 def get_savg_feature_arr(landsat_feature_da, station_tair_df,
@@ -80,7 +80,7 @@ def main(station_locations_filepath, station_tair_filepath,
     # reproject the `station_tair_df`
     station_location_gser = gpd.GeoSeries(gpd.points_from_xy(
         station_location_df['x'], station_location_df['y']),
-                                          crs=geo_utils.CRS)
+                                          crs=utils.CRS)
     station_location_landsat_gser = station_location_gser.to_crs(
         landsat_features_ds.attrs['pyproj_srs'])
 
@@ -96,7 +96,7 @@ def main(station_locations_filepath, station_tair_filepath,
                                  index=station_tair_df.index,
                                  columns=pd.MultiIndex.from_product(
                                      (station_tair_df.columns,
-                                      utils.REGRESSION_DF_COLUMNS)))
+                                      regr_utils.REGRESSION_DF_COLUMNS)))
 
     # 1. target
     for column in station_tair_df.columns:
@@ -106,8 +106,8 @@ def main(station_locations_filepath, station_tair_filepath,
     # 2. features
     # 2.1 and 2.2 - LST and NDWI
     # first prepare the kernels to spatially average the landsat features
-    kernel_dict = utils.get_kernel_dict()
-    for landsat_feature in utils.LANDSAT_BASE_FEATURES:
+    kernel_dict = regr_utils.get_kernel_dict()
+    for landsat_feature in regr_utils.LANDSAT_BASE_FEATURES:
         landsat_feature_da = landsat_features_ds[landsat_feature]
         landsat_feature_da.attrs = landsat_features_ds.attrs.copy()
         landsat_savg_feature_arr = get_savg_feature_arr(
@@ -117,7 +117,7 @@ def main(station_locations_filepath, station_tair_filepath,
                 station_tair_df.columns, landsat_savg_feature_arr):
             for i, multi_column in enumerate([
                 (station_column, f'{landsat_feature}_{radius}')
-                    for radius in utils.AVERAGING_RADII
+                    for radius in regr_utils.AVERAGING_RADII
             ]):
                 regression_df[multi_column] = station_feature_arr[:, i]
 
@@ -130,8 +130,8 @@ def main(station_locations_filepath, station_tair_filepath,
     # dump it (need to dump the index here)
     # use the `[utils.REGRESSION_DF_COLUMNS]` to ensure a consistent column
     # ordering after `stack`
-    regression_df.stack(
-        level=0)[utils.REGRESSION_DF_COLUMNS].dropna().to_csv(dst_filepath)
+    regression_df.stack(level=0)[
+        regr_utils.REGRESSION_DF_COLUMNS].dropna().to_csv(dst_filepath)
     logger.info("dumped air temperature regression data frame to %s",
                 dst_filepath)
 
