@@ -1,6 +1,6 @@
-.PHONY: download_tree_canopy biophysical_table_shade station_measurements \
-	landsat_features regression_df regressor swiss_dem tair_regr_maps \
-	ref_et calibrate_ucm tair_ucm_maps
+.PHONY: download_tree_canopy download_cadastre biophysical_table_shade \
+	station_measurements landsat_features regression_df regressor \
+	swiss_dem tair_regr_maps ref_et calibrate_ucm tair_ucm_maps
 
 
 #################################################################################
@@ -60,9 +60,15 @@ AGGLOM_LULC_FILE_KEY = urban-footprinter/lausanne-agglom/agglom-lulc.tif
 AGGLOM_LULC_TIF := $(DATA_RAW_DIR)/agglom-lulc.tif
 TREE_CANOPY_FILE_KEY = detectree/lausanne-agglom/tree-canopy.tif
 TREE_CANOPY_TIF := $(DATA_RAW_DIR)/tree-canopy.tif
+CADASTRE_DIR := $(DATA_RAW_DIR)/cadastre
+CADASTRE_FILE_KEY = cantons/vaud/cadastre/Cadastre_agglomeration.zip
+CADASTRE_UNZIP_FILEPATTERN := \
+	Cadastre/(NPCS|MOVD)_CAD_TPR_(BATHS|CSBOIS|CSDIV|CSDUR|CSEAU|CSVERT)_S.*
+CADASTRE_SHP := $(CADASTRE_DIR)/cadastre.shp
 BIOPHYSICAL_TABLE_CSV := $(DATA_RAW_DIR)/biophysical-table.csv
 BIOPHYSICAL_TABLE_SHADE_CSV := $(DATA_INTERIM_DIR)/biophysical-table-shade.csv
 #### code
+MAKE_CADASTRE_SHP_FROM_ZIP_PY := $(CODE_DIR)/make_cadastre_shp_from_zip.py
 MAKE_BIOPHYSICAL_TABLE_SHADE_PY := $(CODE_DIR)/make_biophysical_table_shade.py
 
 ### rules
@@ -78,6 +84,15 @@ $(AGGLOM_LULC_TIF): | $(DATA_RAW_DIR)
 $(TREE_CANOPY_TIF): | $(DATA_RAW_DIR)
 	python $(DOWNLOAD_S3_PY) $(TREE_CANOPY_FILE_KEY) $@
 download_tree_canopy: $(TREE_CANOPY_TIF)
+$(CADASTRE_DIR): | $(DATA_RAW_DIR)
+	mkdir $@
+$(CADASTRE_DIR)/%.zip: | $(CADASTRE_DIR)
+	python $(DOWNLOAD_S3_PY) $(CADASTRE_FILE_KEY) $@
+$(CADASTRE_DIR)/%.shp: $(CADASTRE_DIR)/%.zip $(MAKE_CADASTRE_SHP_FROM_ZIP_PY)
+	python $(MAKE_CADASTRE_SHP_FROM_ZIP_PY) $< $@ \
+		"$(CADASTRE_UNZIP_FILEPATTERN)"
+	touch $@ 
+download_cadastre: $(CADASTRE_SHP)
 $(BIOPHYSICAL_TABLE_SHADE_CSV): $(AGGLOM_LULC_TIF) $(TREE_CANOPY_TIF) \
 	$(BIOPHYSICAL_TABLE_CSV) $(MAKE_BIOPHYSICAL_TABLE_SHADE_PY)
 	python $(MAKE_BIOPHYSICAL_TABLE_SHADE_PY) $(AGGLOM_LULC_TIF) \
