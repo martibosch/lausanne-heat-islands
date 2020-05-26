@@ -159,10 +159,12 @@ def plot_T_maps(T_da,
                 comparison_df=None,
                 err_classes=None,
                 **plot_kws):
-    g = T_da.plot(
+    g = T_da.rename({
+        'time': 'date'
+    }).plot(
         x='x',
         y='y',
-        col='time',
+        col='date',
         col_wrap=num_cols,
         # cbar_kwargs={
         #     'shrink': .2,
