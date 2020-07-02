@@ -7,7 +7,7 @@ import click
 import pandas as pd
 from pylandsat import utils as pylandsat_utils
 
-from invest_heat_islands import settings
+from lausanne_heat_islands import settings
 
 HOUR_TD = datetime.timedelta(hours=21)
 

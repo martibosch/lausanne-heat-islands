@@ -15,7 +15,7 @@ DATA_PROCESSED_DIR := $(DATA_DIR)/processed
 
 MODELS_DIR = models
 
-CODE_DIR = invest_heat_islands
+CODE_DIR = lausanne_heat_islands
 
 NOTEBOOKS_DIR = notebooks
 

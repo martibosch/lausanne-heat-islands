@@ -8,7 +8,7 @@ import click
 import dotenv
 from tqdm import tqdm
 
-from invest_heat_islands import settings
+from lausanne_heat_islands import settings
 
 
 @click.command()

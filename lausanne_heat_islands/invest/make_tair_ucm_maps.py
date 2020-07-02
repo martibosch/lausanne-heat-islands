@@ -5,8 +5,8 @@ import warnings
 import click
 import geopandas as gpd
 
-from invest_heat_islands import settings, utils
-from invest_heat_islands.invest import utils as invest_utils
+from lausanne_heat_islands import settings, utils
+from lausanne_heat_islands.invest import utils as invest_utils
 
 
 @click.command()

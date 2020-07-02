@@ -5,7 +5,7 @@ import joblib as jl
 import pandas as pd
 from sklearn import linear_model, metrics
 
-from invest_heat_islands import settings
+from lausanne_heat_islands import settings
 
 
 @click.command()

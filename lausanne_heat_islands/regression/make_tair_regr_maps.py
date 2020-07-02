@@ -9,8 +9,8 @@ import salem  # noqa: F401
 import xarray as xr
 from scipy import ndimage as ndi
 
-from invest_heat_islands import settings, utils
-from invest_heat_islands.regression import utils as regr_utils
+from lausanne_heat_islands import settings, utils
+from lausanne_heat_islands.regression import utils as regr_utils
 
 
 def get_savg_feature_ds(day_da, kernel_dict):

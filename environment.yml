@@ -1,4 +1,4 @@
-name: invest-heat-islands
+name: lausanne-heat-islands
 channels:
   - conda-forge
 dependencies:

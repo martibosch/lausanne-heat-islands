@@ -6,7 +6,7 @@ import pandas as pd
 import rasterio as rio
 from rasterio import transform, windows
 
-from invest_heat_islands import settings
+from lausanne_heat_islands import settings
 
 
 @click.command()

@@ -1,8 +1,8 @@
 from setuptools import setup
 
 setup(
-    name='invest-heat-islands',
-    packages=['invest_heat_islands'],
+    name='lausanne-heat-islands',
+    packages=['lausanne_heat_islands'],
     version='0.1.0',
     description='Simulation of urban heat islands with Urban InVEST',
     author='Martí Bosch',

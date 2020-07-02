@@ -11,7 +11,7 @@ import salem
 import xarray as xr
 from rio_toa import brightness_temp
 
-from invest_heat_islands import settings, utils
+from lausanne_heat_islands import settings, utils
 
 DATETIME_FMT = '%Y-%m-%d'
 

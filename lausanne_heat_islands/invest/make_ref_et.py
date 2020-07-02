@@ -9,7 +9,7 @@ import pandas as pd
 import pyeto
 import xarray as xr
 
-from invest_heat_islands import settings, utils
+from lausanne_heat_islands import settings, utils
 
 # 46.519833 degrees in radians
 LAUSANNE_LAT = 0.811924

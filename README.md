@@ -1,14 +1,16 @@
-[![GitHub license](https://img.shields.io/github/license/martibosch/invest-heat-islands.svg)](https://github.com/martibosch/invest-heat-islands/blob/master/LICENSE)
+[![GitHub license](https://img.shields.io/github/license/martibosch/lausanne-heat-islands.svg)](https://github.com/martibosch/lausanne-heat-islands/blob/master/LICENSE)
 
-# InVEST heat islands
+# Lausanne heat islands
 
-A reusable computational workflow to apply the InVEST urban cooling model to simulate urban heat islands.
+A reusable computational workflow to use the InVEST urban cooling model to simulate urban heat islands, illustrated with an example application to the Swiss urban agglomeration of Lausanne.
+
+![Example figure](figure.png)
 
 ## Notebooks
 
-* [Spatial regression](https://github.com/martibosch/invest-heat-islands/blob/master/notebooks/spatial-regression.ipynb)
-* [InVEST urban cooling model](https://github.com/martibosch/invest-heat-islands/blob/master/notebooks/invest-urban-cooling-model.ipynb)
-* [Comparison](https://github.com/martibosch/invest-heat-islands/blob/master/notebooks/comparison.ipynb)
+* [Spatial regression](https://github.com/martibosch/lausanne-heat-islands/blob/master/notebooks/spatial-regression.ipynb)
+* [InVEST urban cooling model](https://github.com/martibosch/lausanne-heat-islands/blob/master/notebooks/invest-urban-cooling-model.ipynb)
+* [Comparison](https://github.com/martibosch/lausanne-heat-islands/blob/master/notebooks/comparison.ipynb)
 
 ## See also
 

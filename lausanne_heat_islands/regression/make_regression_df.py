@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from invest_heat_islands import settings, utils
-from invest_heat_islands.regression import utils as regr_utils
+from lausanne_heat_islands import settings, utils
+from lausanne_heat_islands.regression import utils as regr_utils
 
 
 def get_savg_feature_arr(landsat_feature_da, station_tair_df,

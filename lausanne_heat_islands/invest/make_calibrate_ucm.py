@@ -7,8 +7,8 @@ import click
 import dotenv
 import invest_ucm_calibration as iuc
 
-from invest_heat_islands import settings
-from invest_heat_islands.invest import utils as invest_utils
+from lausanne_heat_islands import settings
+from lausanne_heat_islands.invest import utils as invest_utils
 
 
 @click.command()
