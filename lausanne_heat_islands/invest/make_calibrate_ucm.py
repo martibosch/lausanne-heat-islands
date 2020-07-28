@@ -13,7 +13,6 @@ from lausanne_heat_islands.invest import utils as invest_utils
 
 @click.command()
 @click.argument('agglom_lulc_filepath', type=click.Path(exists=True))
-@click.argument('aoi_vector_filepath', type=click.Path(exists=True))
 @click.argument('biophysical_table_filepath', type=click.Path(exists=True))
 @click.argument('ref_et_filepath', type=click.Path(exists=True))
 @click.argument('station_locations_filepath',
@@ -30,10 +29,10 @@ from lausanne_heat_islands.invest import utils as invest_utils
 @click.option('--x0-w-eti', type=float, default=0.2)
 @click.option('--metric', default='R2')
 @click.option('--stepsize', type=float, default=0.3)
-def main(agglom_lulc_filepath, aoi_vector_filepath, biophysical_table_filepath,
-         ref_et_filepath, station_locations_filepath, station_tair_filepath,
-         dst_filepath, x0_tair_avg_radius, x0_green_area_cooling_dist,
-         x0_w_shade, x0_w_albedo, x0_w_eti, metric, stepsize):
+def main(agglom_lulc_filepath, biophysical_table_filepath, ref_et_filepath,
+         station_locations_filepath, station_tair_filepath, dst_filepath,
+         x0_tair_avg_radius, x0_green_area_cooling_dist, x0_w_shade,
+         x0_w_albedo, x0_w_eti, metric, stepsize):
     logger = logging.getLogger(__name__)
     # disable InVEST's logging
     for module in ('natcap.invest.urban_cooling_model', 'natcap.invest.utils',
@@ -65,7 +64,6 @@ def main(agglom_lulc_filepath, aoi_vector_filepath, biophysical_table_filepath,
         ucm_calibrator = iuc.UCMCalibrator(
             agglom_lulc_filepath,
             biophysical_table_filepath,
-            aoi_vector_filepath,
             'factors',
             list(ref_et_raster_filepath_dict.values()),
             station_t_filepath=station_tair_filepath,
@@ -87,7 +85,7 @@ def main(agglom_lulc_filepath, aoi_vector_filepath, biophysical_table_filepath,
             {
                 param_key: param_value
                 for param_key, param_value in zip(
-                    iuc.settings.DEFAULT_MODEL_PARAMS, solution)
+                    iuc.settings.DEFAULT_UCM_PARAMS, solution)
             }, dst)
     logger.info("dumped calibrated parameters (R^2=%f) to %s", 1 - cost,
                 dst_filepath)

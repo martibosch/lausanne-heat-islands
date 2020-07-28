@@ -86,18 +86,6 @@ def get_ref_da(ref_geom, dst_res, dst_fill=0, dst_crs=None):
     return ref_da
 
 
-# STATS
-METRIC_COLUMNS = ['R^2', 'MAE', 'RMSE']
-
-
-def compute_model_perf(obs, pred):
-    return [
-        metrics.r2_score(obs, pred),
-        metrics.mean_absolute_error(obs, pred),
-        metrics.mean_squared_error(obs, pred, squared=False),
-    ]
-
-
 # PLOTS
 # ugly hardcoded for the legend of the error classes in map `plot_T_maps`
 ERR_CLASSES = [-5, -3, -1, 1, 3, 5]  # station markers

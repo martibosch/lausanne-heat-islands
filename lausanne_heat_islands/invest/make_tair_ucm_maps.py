@@ -48,7 +48,6 @@ def main(calibrated_params_filepath, agglom_extent_filepath,
 
     ucm_wrapper = invest_utils.UCMWrapper(agglom_lulc_filepath,
                                           biophysical_table_filepath,
-                                          agglom_extent_filepath,
                                           ref_et_filepath,
                                           station_tair_filepath,
                                           station_locations_filepath,

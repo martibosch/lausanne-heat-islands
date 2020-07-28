@@ -8,7 +8,7 @@ dependencies:
     - flake8-isort==2.7.0
     - natcap.invest==3.8.0
     - git+git://github.com/woodcrafty/PyETo.git@0b7ac9f149f4c89c5b5759a875010c521aa07f0f
-    - invest-ucm-calibration==0.1.1
+    - invest-ucm-calibration==0.3.1
     - pylandsat==0.2
     - rio-toa==0.3.0
     - salem==0.2.4

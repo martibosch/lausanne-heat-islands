@@ -247,13 +247,10 @@ CALIBRATED_PARAMS_JSON := $(DATA_INVEST_DIR)/calibrated-params.json
 MAKE_CALIBRATE_UCM_PY := $(CODE_INVEST_DIR)/make_calibrate_ucm.py
 
 ### rules
-#### we do not list `$(AGGLOM_EXTENT_SHP)` as requirement because we are not
-#### actually using it, just passing it because the InVEST urban cooling model
-#### requires a shapefile for the area of interest
 $(CALIBRATED_PARAMS_JSON): $(AGGLOM_LULC) $(BIOPHYSICAL_TABLE_SHADE_CSV) \
 	$(REF_ET_NC) $(STATION_LOCATIONS_CSV) $(STATION_TAIR_CSV) \
 	$(MAKE_CALIBRATE_UCM_PY)
-	python $(MAKE_CALIBRATE_UCM_PY) $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) \
+	python $(MAKE_CALIBRATE_UCM_PY) $(AGGLOM_LULC_TIF) \
 		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) \
 		$(STATION_LOCATIONS_CSV) $(STATION_TAIR_CSV) $@		
 calibrate_ucm: $(CALIBRATED_PARAMS_JSON)
