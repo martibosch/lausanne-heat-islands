@@ -100,7 +100,8 @@ def main(agglom_extent_filepath, station_tair_filepath,
     # 1.3 Elevation
     # dem_s3_filepath = path.join(bucket_name, dem_file_key)
     # with fs_s3.open(dem_s3_filepath) as dem_file_obj:
-    dem_da = utils.salem_da_from_singleband(swiss_dem_filepath)
+    # dem_da = utils.salem_da_from_singleband(swiss_dem_filepath)
+    dem_da = salem.open_xr_dataset(swiss_dem_filepath)['data']
     # align it
     dem_arr = landsat_features_ds.salem.transform(dem_da,
                                                   interp='linear').values

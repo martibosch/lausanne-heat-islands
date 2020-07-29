@@ -4,8 +4,9 @@ import warnings
 
 import click
 import geopandas as gpd
+import swiss_uhi_utils as suhi
 
-from lausanne_heat_islands import settings, utils
+from lausanne_heat_islands import settings
 from lausanne_heat_islands.invest import utils as invest_utils
 
 
@@ -39,13 +40,10 @@ def main(calibrated_params_filepath, agglom_extent_filepath,
     crs = agglom_extent_gdf.crs
     ref_geom = agglom_extent_gdf.loc[0]['geometry']
 
-    # use the ref geometry to obtain the reference grid (data array) with the
-    # target resolution
-    ref_da = utils.get_ref_da(ref_geom, dst_res, dst_fill=0, dst_crs=crs)
-
     with open(calibrated_params_filepath) as src:
         model_params = json.load(src)
 
+    # 1. Predict an air temperature data array
     ucm_wrapper = invest_utils.UCMWrapper(agglom_lulc_filepath,
                                           biophysical_table_filepath,
                                           ref_et_filepath,
@@ -53,6 +51,11 @@ def main(calibrated_params_filepath, agglom_extent_filepath,
                                           station_locations_filepath,
                                           extra_ucm_args=model_params)
     T_ucm_da = ucm_wrapper.predict_t_da()
+
+    # 2. Use the ref geometry to obtain the reference grid (data array) with
+    #    the target resolution and align the predicted temperature data array
+    #    to it
+    ref_da = suhi.get_ref_da(ref_geom, dst_res, fill=0, crs=crs)
     T_ucm_da = ref_da.salem.transform(T_ucm_da, interp='linear')
 
     # 3. Crop the data array to the valid data region and dump it to a file

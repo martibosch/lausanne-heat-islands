@@ -10,8 +10,8 @@ dependencies:
     - git+git://github.com/woodcrafty/PyETo.git@0b7ac9f149f4c89c5b5759a875010c521aa07f0f
     - invest-ucm-calibration==0.3.1
     - pylandsat==0.2
-    - rio-toa==0.3.0
     - salem==0.2.4
+    - git+git://github.com/martibosch/swiss-uhi-utils.git@0e26f08371fc2e23e130f6f5612b4ce6990f3d60
   - setuptools
   - wheel
   - click
