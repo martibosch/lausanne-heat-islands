@@ -1,6 +1,6 @@
-.PHONY: download_tree_canopy download_cadastre biophysical_table_shade \
-	station_measurements landsat_features regression_df regressor \
-	swiss_dem tair_regr_maps ref_et calibrate_ucm tair_ucm_maps
+.PHONY: biophysical_table_shade station_measurements landsat_features \
+	regression_df regressor swiss_dem tair_regr_maps ref_et calibrate_ucm \
+	tair_ucm_maps download_zenodo_data
 
 
 #################################################################################
@@ -54,45 +54,36 @@ UTILS_PY := $(CODE_DIR)/utils.py
 ## the biophysical table
 ### variables
 AGGLOM_EXTENT_DIR := $(DATA_RAW_DIR)/agglom-extent
-AGGLOM_EXTENT_FILE_KEY = urban-footprinter/lausanne-agglom/agglom-extent.zip
+AGGLOM_EXTENT_ZENODO_URI = \
+	https://zenodo.org/record/4311544/files/agglom-extent.zip?download=1
 AGGLOM_EXTENT_SHP := $(AGGLOM_EXTENT_DIR)/agglom-extent.shp
-AGGLOM_LULC_FILE_KEY = urban-footprinter/lausanne-agglom/agglom-lulc.tif
+AGGLOM_LULC_ZENODO_URI = \
+	https://zenodo.org/record/4311544/files/agglom-lulc.tif?download=1
 AGGLOM_LULC_TIF := $(DATA_RAW_DIR)/agglom-lulc.tif
-TREE_CANOPY_FILE_KEY = detectree/lausanne-agglom/tree-canopy.tif
+TREE_CANOPY_ZENODO_URI = \
+	https://zenodo.org/record/4310112/files/tree-canopy.tif?download=1
 TREE_CANOPY_TIF := $(DATA_RAW_DIR)/tree-canopy.tif
-CADASTRE_DIR := $(DATA_RAW_DIR)/cadastre
-CADASTRE_FILE_KEY = cantons/vaud/cadastre/Cadastre_agglomeration.zip
-CADASTRE_UNZIP_FILEPATTERN := \
-	Cadastre/(NPCS|MOVD)_CAD_TPR_(BATHS|CSBOIS|CSDIV|CSDUR|CSEAU|CSVERT)_S.*
-CADASTRE_SHP := $(CADASTRE_DIR)/cadastre.shp
+BIOPHYSICAL_TABLE_ZENODO_URI = \
+	https://zenodo.org/record/4384675/files/biophysical-table.csv?download=1
 BIOPHYSICAL_TABLE_CSV := $(DATA_RAW_DIR)/biophysical-table.csv
 BIOPHYSICAL_TABLE_SHADE_CSV := $(DATA_INTERIM_DIR)/biophysical-table-shade.csv
 #### code
-MAKE_CADASTRE_SHP_FROM_ZIP_PY := $(CODE_DIR)/make_cadastre_shp_from_zip.py
 MAKE_BIOPHYSICAL_TABLE_SHADE_PY := $(CODE_DIR)/make_biophysical_table_shade.py
 
 ### rules
 $(AGGLOM_EXTENT_DIR): | $(DATA_RAW_DIR)
 	mkdir $@
 $(AGGLOM_EXTENT_DIR)/%.zip: | $(AGGLOM_EXTENT_DIR)
-	python $(DOWNLOAD_S3_PY) $(AGGLOM_EXTENT_FILE_KEY) $@
+	wget $(AGGLOM_EXTENT_ZENODO_URI) -O $@
 $(AGGLOM_EXTENT_DIR)/%.shp: $(AGGLOM_EXTENT_DIR)/%.zip
 	unzip $< -d $(AGGLOM_EXTENT_DIR)
 	touch $@
 $(AGGLOM_LULC_TIF): | $(DATA_RAW_DIR)
-	python $(DOWNLOAD_S3_PY) $(AGGLOM_LULC_FILE_KEY) $@
+	wget $(AGGLOM_LULC_ZENODO_URI) -O $@
 $(TREE_CANOPY_TIF): | $(DATA_RAW_DIR)
-	python $(DOWNLOAD_S3_PY) $(TREE_CANOPY_FILE_KEY) $@
-download_tree_canopy: $(TREE_CANOPY_TIF)
-$(CADASTRE_DIR): | $(DATA_RAW_DIR)
-	mkdir $@
-$(CADASTRE_DIR)/%.zip: | $(CADASTRE_DIR)
-	python $(DOWNLOAD_S3_PY) $(CADASTRE_FILE_KEY) $@
-$(CADASTRE_DIR)/%.shp: $(CADASTRE_DIR)/%.zip $(MAKE_CADASTRE_SHP_FROM_ZIP_PY)
-	python $(MAKE_CADASTRE_SHP_FROM_ZIP_PY) $< $@ \
-		"$(CADASTRE_UNZIP_FILEPATTERN)"
-	touch $@ 
-download_cadastre: $(CADASTRE_SHP)
+	wget $(TREE_CANOPY_ZENODO_URI) -O $@
+$(BIOPHYSICAL_TABLE_CSV): | $(DATA_RAW_DIR)
+	wget $(BIOPHYSICAL_TABLE_ZENODO_URI) -O $@
 $(BIOPHYSICAL_TABLE_SHADE_CSV): $(AGGLOM_LULC_TIF) $(TREE_CANOPY_TIF) \
 	$(BIOPHYSICAL_TABLE_CSV) $(MAKE_BIOPHYSICAL_TABLE_SHADE_PY)
 	python $(MAKE_BIOPHYSICAL_TABLE_SHADE_PY) $(AGGLOM_LULC_TIF) \
@@ -105,20 +96,28 @@ biophysical_table_shade: $(BIOPHYSICAL_TABLE_SHADE_CSV)
 
 ### variables
 STATION_RAW_DIR := $(DATA_RAW_DIR)/stations
+LANDSAT_TILES_ZENODO_URI = \
+	https://zenodo.org/record/4384675/files/landsat-tiles.csv?download=1
 LANDSAT_TILES_CSV := $(DATA_RAW_DIR)/landsat-tiles.csv
-STATION_RAW_FILENAMES = station-locations.csv agrometeo-tre200s0.csv \
-	meteoswiss-lausanne-tre000s0.zip meteoswiss-lausanne-tre200s0.zip \
-	WSLLAF.txt VaudAir_EnvoiTemp20180101-20200128_EPFL_20200129.xlsx
+STATION_RAW_FILENAMES = agrometeo-tre200s0.csv meteoswiss-lausanne-tre000s0.zip \
+	meteoswiss-lausanne-tre200s0.zip WSLLAF.txt \
+	VaudAir_EnvoiTemp20180101-20200128_EPFL_20200129.xlsx
 STATION_RAW_FILEPATHS := $(addprefix $(STATION_RAW_DIR)/, \
 	$(STATION_RAW_FILENAMES))
+STATION_LOCATIONS_ZENODO_URI = \
+	https://zenodo.org/record/4384675/files/station-locations.csv?download=1
 STATION_LOCATIONS_CSV := $(STATION_RAW_DIR)/station-locations.csv
 STATION_TAIR_CSV := $(DATA_INTERIM_DIR)/station-tair.csv
 #### code
 MAKE_STATION_TAIR_DF_PY := $(CODE_DIR)/make_station_tair_df.py
 
 ### rules
+$(LANDSAT_TILES_CSV): | $(DATA_RAW_DIR)
+	wget $(LANDSAT_TILES_ZENODO_URI) -O $@
 $(STATION_RAW_DIR): | $(DATA_RAW_DIR)
 	mkdir $@
+$(STATION_LOCATIONS_CSV): | $(STATION_RAW_DIR)
+	wget $(STATION_LOCATIONS_ZENODO_URI) -O $@
 define DOWNLOAD_STATION_DATA
 $(STATION_RAW_DIR)/$(STATION_RAW_FILENAME): | $(STATION_RAW_DIR)
 	python $(DOWNLOAD_S3_PY) \
@@ -271,6 +270,29 @@ $(TAIR_UCM_MAPS_NC): $(CALIBRATED_PARAMS_JSON) $(AGGLOM_EXTENT_SHP) \
 		$(BIOPHYSICAL_TABLE_SHADE_CSV) $(REF_ET_NC) $(STATION_TAIR_CSV) \
 		$(STATION_LOCATIONS_CSV) $@
 tair_ucm_maps: $(TAIR_UCM_MAPS_NC)
+
+
+#################################################################################
+# DEDICATED ZENODO DATA https://zenodo.org/record/4384675
+
+## variables
+STATION_TAIR_ZENODO_URI = \
+	https://zenodo.org/record/4384675/files/station-tair.csv?download=1
+REF_ET_ZENODO_URI = https://zenodo.org/record/4384675/files/ref-et.nc?download=1
+
+## rules
+### This target serves to bypass some of the steps of the computational workflow
+### which require access to proprietary data that we cannot share. This target
+### will download some intermediate targets and tweak some prerequisites so that
+### the computational workflow can be executed until the end so that all the
+### results can be reproduced
+download_zenodo_data: $(AGGLOM_LULC_TIF) $(AGGLOM_EXTENT_SHP) | \
+	$(STATION_RAW_DIR) $(DATA_INTERIM_DIR) $(DATA_INVEST_DIR)
+	touch $(STATION_RAW_FILEPATHS)
+	wget --no-use-server-timestamps $(STATION_TAIR_ZENODO_URI) -O \
+		$(STATION_TAIR_CSV)
+	wget --no-use-server-timestamps $(REF_ET_ZENODO_URI) -O $(REF_ET_NC)
+
 
 #################################################################################
 # Self Documenting Commands                                                     #
