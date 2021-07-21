@@ -7,6 +7,9 @@ from matplotlib import colors
 from shapely import geometry
 from sklearn import metrics
 
+# Swiss CRS
+CRS = 'epsg:2056'
+
 # PLOTS
 # ugly hardcoded for the legend of the error classes in map `plot_T_maps`
 ERR_CLASSES = [-5, -3, -1, 1, 3, 5]  # station markers
